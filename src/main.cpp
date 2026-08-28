@@ -1,6 +1,22 @@
 #include "core.hpp"
 
+#include "grf/device.hpp"
+#include "grf/gui.hpp"
+#include "grf/window.hpp"
+#include "grf/swapchain.hpp"
+
+using namespace grf;
+
 int main() {
   logging::register_thread(logging::Thread::main);
   logging::general("Cave Game {}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+
+  Window window;
+  Device device;
+  Swapchain swapchain(device, window);
+  GUI gui(device, swapchain);
+
+  while (!window.shouldClose()) {
+    window.pollEvents();
+  }
 }
