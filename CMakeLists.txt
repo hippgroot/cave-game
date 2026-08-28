@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 4.2)
+
+project(CaveGame
+  VERSION 0.1.0
+  LANGUAGES CXX
+)
+
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 26)
+
+add_executable(cave-game ${CMAKE_SOURCE_DIR}/src/main.cpp)
+
+target_compile_definitions(cave-game PRIVATE
+  VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
+  VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
+  VERSION_PATCH=${CMAKE_PROJECT_VERSION_PATCH}
+)
