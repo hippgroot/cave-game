@@ -13,7 +13,12 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/grf)
 
 add_executable(cave-game
   ${CMAKE_SOURCE_DIR}/include/core.hpp
+  ${CMAKE_SOURCE_DIR}/include/game.hpp
+  ${CMAKE_SOURCE_DIR}/include/game_objects.hpp
   ${CMAKE_SOURCE_DIR}/include/render.hpp
+
+  ${CMAKE_SOURCE_DIR}/src/game.cpp
+  ${CMAKE_SOURCE_DIR}/src/game_objects.cpp
   ${CMAKE_SOURCE_DIR}/src/main.cpp
   ${CMAKE_SOURCE_DIR}/src/render.cpp
 )
@@ -22,6 +27,7 @@ target_compile_definitions(cave-game PRIVATE
   VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
   VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
   VERSION_PATCH=${CMAKE_PROJECT_VERSION_PATCH}
+  SHADER_DIR="${CMAKE_SOURCE_DIR}/shaders"
 )
 
 target_include_directories(cave-game PRIVATE ${CMAKE_SOURCE_DIR}/include)

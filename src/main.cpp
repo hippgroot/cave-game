@@ -5,6 +5,8 @@
 #include "grf/window.hpp"
 #include "grf/swapchain.hpp"
 
+using namespace grf;
+
 int main() {
   logging::register_thread(logging::Thread::main);
   logging::general("Cave Game {}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
@@ -16,7 +18,7 @@ int main() {
   Profiler profiler(device);
 
   Channel<f32>        beginFrame;
-  Channel<FrameData>  newFrame;
+  Channel<Game::Data> newFrame;
 
   Renderer renderer(Renderer::Info{
     .device     = device,
@@ -27,6 +29,12 @@ int main() {
     .newFrame   = newFrame
   });
 
+  Game game(Game::Info{
+    .window   = window,
+    .gui      = gui,
+    .profiler = profiler
+  });
+
   while (!window.shouldClose()) {
     auto dtopt = beginFrame.wait_to_receive({});
     if (!dtopt) break;
@@ -34,13 +42,9 @@ int main() {
 
     window.pollEvents();
     profiler.logFrameTime(dt);
+    game.update(dt);
+    game.drawGUI();
 
-    gui.newFrame();
-    profiler.draw();
-    auto guiSnapshot = gui.snapshot();
-
-    newFrame.send(FrameData{
-      .guiSnapshot = std::move(guiSnapshot)
-    });
+    newFrame.send(game.snapshot());
   }
 }

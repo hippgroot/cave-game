@@ -1,47 +1,87 @@
 #pragma once
 
-#include "core.hpp"
+#include "game.hpp"
 
 #include "grf/device.hpp"
-#include "grf/types.hpp"
 
 #include <stop_token>
 #include <thread>
+#include <unordered_map>
 
 namespace grf {
-  class Swapchain;
-  class GUI;
-  class Profiler;
+
+class Swapchain;
+
 }
 
-using namespace grf;
+class Assets {
+  std::unordered_map<str, grf::Shader>    m_shaders;
+  std::unordered_map<str, grf::Pipeline>  m_pipelines;
+
+public:
+  explicit Assets(const grf::Device& device, grf::Format swapchainFormat);
+  ~Assets() = default;
+
+  Assets(const Assets&) = delete;
+  Assets(Assets&&) = delete;
+  Assets& operator=(const Assets&) = delete;
+  Assets& operator=(Assets&&) = delete;
+
+  grf::Shader shader(const str& name) const;
+  grf::Pipeline pipeline(const str& name) const;
+
+private:
+  void compileShaders(const grf::Device& device);
+  void createPipelines(const grf::Device& device, grf::Format swapchainFormat);
+};
+
+class Graveyard {
+  using ValidType = std::variant<grf::Buffer, grf::Image>;
+  std::vector<std::pair<u32, ValidType>> m_retired;
+
+public:
+  Graveyard() = default;
+  ~Graveyard() = default;
+
+  Graveyard(const Graveyard&) = delete;
+  Graveyard(Graveyard&&) = delete;
+  Graveyard& operator=(const Graveyard&) = delete;
+  Graveyard& operator=(Graveyard&&) = delete;
+
+  void retire(ValidType resource, u32 frameDelay);
+  void update();
+};
 
 class Renderer {
 public:
   struct Info {
-    const Device&       device;
-    const Swapchain&    swapchain;
-    const GUI&          gui;
-    const Profiler&     profiler;
-    Channel<f32>&       beginFrame;
-    Channel<FrameData>& newFrame;
+    const grf::Device&    device;
+    const grf::Swapchain& swapchain;
+    const grf::GUI&       gui;
+    const grf::Profiler&  profiler;
+    Channel<f32>&         beginFrame;
+    Channel<Game::Data>&  newFrame;
   };
 
 private:
-  static const u32    m_flightFrames = 2u;
+  static const u32              m_flightFrames = 2u;
 
-  const Device&       m_device;
-  const Swapchain&    m_swapchain;
-  const GUI&          m_gui;
-  const Profiler&     m_profiler;
-  Channel<f32>&       m_beginFrame;
-  Channel<FrameData>& m_newFrame;
+  const grf::Device&            m_device;
+  const grf::Swapchain&         m_swapchain;
+  const grf::GUI&               m_gui;
+  const grf::Profiler&          m_profiler;
 
-  Queue               m_queue;
-  Ring<CommandBuffer> m_cmdRing;
-  Ring<Sync>          m_syncRing;
+  Channel<f32>&                 m_beginFrame;
+  Channel<Game::Data>&          m_newFrame;
 
-  std::jthread        m_thread;
+  Assets                        m_assets;
+  Graveyard                     m_graveyard;
+
+  grf::Queue                    m_queue;
+  grf::Ring<grf::CommandBuffer> m_cmdRing;
+  grf::Ring<grf::Sync>          m_syncRing;
+
+  std::jthread                  m_thread;
 
 public:
   explicit Renderer(const Info& info);
