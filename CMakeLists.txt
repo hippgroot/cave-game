@@ -8,10 +8,15 @@ project(CaveGame
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 26)
 
-add_executable(cave-game ${CMAKE_SOURCE_DIR}/src/main.cpp)
+add_executable(cave-game
+  ${CMAKE_SOURCE_DIR}/include/core.hpp
+  ${CMAKE_SOURCE_DIR}/src/main.cpp
+)
 
 target_compile_definitions(cave-game PRIVATE
   VERSION_MAJOR=${CMAKE_PROJECT_VERSION_MAJOR}
   VERSION_MINOR=${CMAKE_PROJECT_VERSION_MINOR}
   VERSION_PATCH=${CMAKE_PROJECT_VERSION_PATCH}
 )
+
+target_include_directories(cave-game PRIVATE ${CMAKE_SOURCE_DIR}/include)

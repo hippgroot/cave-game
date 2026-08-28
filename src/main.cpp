@@ -1,5 +1,6 @@
-#include <print>
+#include "core.hpp"
 
 int main() {
-  std::println("Cave Game {}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+  logging::register_thread(logging::Thread::main);
+  logging::general("Cave Game {}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 }
