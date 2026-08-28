@@ -8,6 +8,9 @@ project(CaveGame
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 26)
 
+set(GRF_BUILD_EXAMPLES OFF)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/grf)
+
 add_executable(cave-game
   ${CMAKE_SOURCE_DIR}/include/core.hpp
   ${CMAKE_SOURCE_DIR}/src/main.cpp
@@ -20,3 +23,5 @@ target_compile_definitions(cave-game PRIVATE
 )
 
 target_include_directories(cave-game PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+target_link_libraries(cave-game PRIVATE grf)
