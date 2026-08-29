@@ -25,7 +25,7 @@ public:
   struct Settings {
     f32 fov = glm::radians(70.0f);
     f32 sensitivity = 1.0f;
-    i32 viewDistance = 3;
+    i32 viewDistance = 12;
   };
 
   struct Data {

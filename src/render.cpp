@@ -152,8 +152,8 @@ void Renderer::loop(std::stop_token st) {
   logging::register_thread(logging::Thread::render);
   m_beginFrame.send(0.0f);
 
-  while (auto frameopt = m_newFrame.wait_to_receive(st)) {
-    auto frame = std::move(*frameopt);
+  while (auto dataopt = m_newFrame.wait_to_receive(st)) {
+    auto gameData = std::move(*dataopt);
     auto& cmd = m_cmdRing.next();
     auto& frameSync = m_syncRing.next();
 
@@ -161,6 +161,8 @@ void Renderer::loop(std::stop_token st) {
     f32 dt = m_device.beginFrame();
     m_beginFrame.send(dt);
     m_graveyard.update();
+
+    updateChunkCache(gameData.addedChunks, gameData.removedChunks);
 
     auto [swapchainImage, imgSync] = m_swapchain.acquireNextImage();
 
@@ -173,7 +175,7 @@ void Renderer::loop(std::stop_token st) {
     );
 
     m_profiler.beginScope(cmd, "gui");
-    m_gui.render(cmd, frame.guiSnapshot);
+    m_gui.render(cmd, gameData.guiSnapshot);
     m_profiler.endScope(cmd);
 
     cmd.endRendering();
@@ -187,4 +189,43 @@ void Renderer::loop(std::stop_token st) {
   }
 
   m_device.waitIdle();
+}
+
+void Renderer::updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks) {
+  for (auto coord : removedChunks) {
+    ChunkMesh& m = m_chunkCache.at(coord);
+
+    m_graveyard.retire(m.vertexBuffer, m_flightFrames);
+    m_graveyard.retire(m.indexBuffer, m_flightFrames);
+    m_graveyard.retire(m.blocksBuffer, m_flightFrames);
+
+    m_chunkCache.erase(coord);
+  }
+
+  for (const auto& [coord, meshData] : addedChunks) {
+    Buffer vertexBuffer = m_device.createBuffer(Buffer::Info{
+      .size   = static_cast<u32>(meshData.vertices.size() * sizeof(Chunk::Vertex)),
+      .intent = BufferIntent::GPUOnly
+    });
+    vertexBuffer.write(meshData.vertices);
+
+    Buffer indexBuffer = m_device.createBuffer(Buffer::Info{
+      .size = static_cast<u32>(meshData.indices.size() * sizeof(u32)),
+      .intent = BufferIntent::GPUOnly
+    });
+    indexBuffer.write(meshData.indices);
+
+    Buffer blocksBuffer = m_device.createBuffer(Buffer::Info{
+      .size   = static_cast<u32>(meshData.types.size() * sizeof(u32)),
+      .intent = BufferIntent::GPUOnly
+    });
+    blocksBuffer.write(meshData.types);
+
+    m_chunkCache.emplace(coord, ChunkMesh{
+      .vertexBuffer = vertexBuffer,
+      .indexBuffer  = indexBuffer,
+      .blocksBuffer = blocksBuffer,
+      .indexCount   = static_cast<u32>(meshData.indices.size())
+    });
+  }
 }

@@ -70,6 +70,15 @@ public:
   };
 
 private:
+  struct ChunkMesh {
+    grf::Buffer vertexBuffer;
+    grf::Buffer indexBuffer;
+    grf::Buffer blocksBuffer;
+    u32         indexCount;
+  };
+
+  using ChunkCache = std::unordered_map<ivec2, ChunkMesh, ivec2_hash>;
+
   static const u32              m_flightFrames = 2u;
   static const grf::Format      m_depthFormat = grf::Format::d32_sfloat;
 
@@ -83,6 +92,7 @@ private:
 
   Assets                        m_assets;
   Graveyard                     m_graveyard;
+  ChunkCache                    m_chunkCache;
 
   grf::Queue                    m_queue;
   grf::Ring<grf::CommandBuffer> m_cmdRing;
@@ -101,4 +111,5 @@ public:
 
 private:
   void loop(std::stop_token st);
+  void updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks);
 };
