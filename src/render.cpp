@@ -5,9 +5,19 @@
 using namespace grf;
 namespace fs = std::filesystem;
 
-Assets::Assets(const Device& device, Format swapchainFormat) {
+Assets::Assets(const Device& device, Format swapchainFormat, Format depthFormat) {
+  loadTextures(device);
+  createSamplers(device);
   compileShaders(device);
-  createPipelines(device, swapchainFormat);
+  createPipelines(device, swapchainFormat, depthFormat);
+}
+
+Image Assets::texture(const str& name) const {
+  return m_textures.at(name);
+}
+
+Sampler Assets::sampler(const str& name) const {
+  return m_samplers.at(name);
 }
 
 Shader Assets::shader(const str& name) const {
@@ -18,19 +28,60 @@ Pipeline Assets::pipeline(const str& name) const {
   return m_pipelines.at(name);
 }
 
+void Assets::loadTextures(const Device& device) {
+  const fs::path _dir = fs::path(ASSETS_DIR)/"textures";
+  const auto load = [this, &device, &_dir](const str& filename){
+    fs::path path = _dir/filename;
+    str name = path.stem().string();
+    Image::Data data = Image::getDataFromFile(path);
+
+    Image image = device.createImage(Image::Info{
+      .width  = data.width,
+      .height = data.height,
+      .format = data.format,
+      .usage  = ImageUsage::Sampled
+    });
+    image.write(data.bytes, Layout::ShaderReadOptimal);
+
+    m_textures.emplace(name, image);
+    logging::general("- {} ({})", name, image.sampledHeapIndex());
+  };
+
+  load("default.png");
+  load("grass_block.png");
+  load("dirt_block.png");
+  load("stone_block.png");
+}
+
+void Assets::createSamplers(const Device& device) {
+  const auto createSampler = [this, &device](const str& name, const Sampler::Info& info){
+    Sampler s = device.createSampler(info);
+
+    m_samplers.emplace(name, s);
+    logging::general("- {} ({})", name, s.heapIndex());
+  };
+
+  logging::general("Loading Textures...");
+
+  createSampler("nearest_repeat", Sampler::Info{
+    .magFilter = Filter::Nearest,
+    .minFilter = Filter::Nearest
+  });
+}
+
 void Assets::compileShaders(const Device& device) {
-  const fs::path _dir = SHADER_DIR;
+  const fs::path _dir = fs::path(ASSETS_DIR)/"shaders";
   const auto compile = [this, &device](ShaderStage stage, const fs::path& path){
     m_shaders.emplace(path.filename().string(), device.compileGlslShader(stage, path));
   };
 
   logging::general("Compiling shaders...");
 
-  compile(ShaderStage::Vertex, _dir/"block.vert");
-  compile(ShaderStage::Fragment, _dir/"block.frag");
+  compile(ShaderStage::Vertex, _dir/"chunk_draw"/"chunk.vert");
+  compile(ShaderStage::Fragment, _dir/"chunk_draw"/"chunk.frag");
 }
 
-void Assets::createPipelines(const Device& device, Format swapchainFormat) {
+void Assets::createPipelines(const Device& device, Format swapchainFormat, Format depthFormat) {
   const auto createGraphics = [this, &device, &swapchainFormat](
     const str& name,
     std::initializer_list<Shader> shaders,
@@ -51,10 +102,10 @@ void Assets::createPipelines(const Device& device, Format swapchainFormat) {
 
   logging::general("Creating pipelines...");
 
-  createGraphics("block_draw", { shader("block.vert"), shader("block.frag") },
+  createGraphics("chunk_draw", { shader("chunk.vert"), shader("chunk.frag") },
     GraphicsPipelineSettings{
       .colorFormats = { swapchainFormat },
-      .depthFormat  = Format::d32_sfloat,
+      .depthFormat  = depthFormat,
       .cullMode     = CullMode::None,
       .depthTest    = true,
       .depthWrite   = true,
@@ -85,7 +136,7 @@ Renderer::Renderer(const Info& info)
   m_profiler(info.profiler),
   m_beginFrame(info.beginFrame),
   m_newFrame(info.newFrame),
-  m_assets(m_device, m_swapchain.format())
+  m_assets(m_device, m_swapchain.format(), m_depthFormat)
 {
   m_queue     = m_device.graphicsQueue();
   m_cmdRing   = m_queue.getCmdRing(m_flightFrames);
@@ -98,48 +149,6 @@ void Renderer::loop(std::stop_token st) {
   logging::register_thread(logging::Thread::render);
   m_beginFrame.send(0.0f);
 
-  Buffer vertexBuffer;
-  Buffer indexBuffer;
-  u32 indexCount = 0;
-{
-  std::array<vec4, 8> vertices = {
-    vec4(-0.5f, -0.5f, -0.5f, 1.0f),
-    vec4(-0.5f, -0.5f, 0.5f, 1.0f),
-    vec4(-0.5f, 0.5f, -0.5f, 1.0f),
-    vec4(-0.5f, 0.5f, 0.5f, 1.0f),
-    vec4(0.5f, -0.5f, -0.5f, 1.0f),
-    vec4(0.5f, -0.5f, 0.5f, 1.0f),
-    vec4(0.5f, 0.5f, -0.5f, 1.0f),
-    vec4(0.5f, 0.5f, 0.5f, 1.0f)
-  };
-
-  std::array<u16, 36> indices = {
-    0, 1, 3, 0, 3, 2,
-    4, 6, 7, 4, 7, 5,
-    0, 4, 5, 0, 5, 1,
-    2, 3, 7, 2, 7, 6,
-    0, 2, 6, 0, 6, 4,
-    1, 5, 7, 1, 7, 3
-  };
-
-  vertexBuffer = m_device.createBuffer(Buffer::Info{
-    .size   = sizeof(vec4) * vertices.size(),
-    .intent = BufferIntent::GPUOnly
-  });
-  vertexBuffer.write(vertices);
-
-  indexBuffer = m_device.createBuffer(Buffer::Info{
-    .size   = sizeof(u16) * indices.size(),
-    .intent = BufferIntent::GPUOnly
-  });
-  indexBuffer.write(indices);
-  indexCount = indices.size();
-}
-
-  struct PC {
-    u64               vertBufAddr;
-    alignas(16) mat4  projView;
-  };
   while (auto frameopt = m_newFrame.wait_to_receive(st)) {
     auto frame = std::move(*frameopt);
     auto& cmd = m_cmdRing.next();
@@ -151,35 +160,13 @@ void Renderer::loop(std::stop_token st) {
     m_graveyard.update();
 
     auto [swapchainImage, imgSync] = m_swapchain.acquireNextImage();
-    Image depthImage = m_device.createImage(Image::Info{
-      .width  = swapchainImage.width(),
-      .height = swapchainImage.height(),
-      .format = Format::d32_sfloat,
-      .usage  = ImageUsage::DepthAttachment
-    });
 
     cmd.begin();
     m_profiler.beginFrame(cmd);
 
     cmd.transition(swapchainImage, Layout::ColorAttachmentOptimal);
-    cmd.transition(depthImage, Layout::DepthAttachmentOptimal);
-
     cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
-      {{ swapchainImage, LoadOp::Clear, StoreOp::Store }},
-      DepthAttachment{ depthImage, LoadOp::Clear, StoreOp::DontCare }
-    );
-
-    PC pc{ vertexBuffer.address(), frame.cameraProjView };
-    cmd.bindPipeline(m_assets.pipeline("block_draw"));
-    cmd.pushConstants(std::as_bytes(std::span{&pc, 1}));
-    cmd.bindIndexBuffer(indexBuffer, IndexType::u16);
-    m_profiler.beginScope(cmd, "block draw");
-    cmd.drawIndexed(indexCount);
-    m_profiler.endScope(cmd);
-
-    cmd.endRendering();
-    cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
-      {{ swapchainImage, LoadOp::Load, StoreOp::Store }}
+      {{ swapchainImage, LoadOp::Clear, StoreOp::Store }}
     );
 
     m_profiler.beginScope(cmd, "gui");
@@ -194,8 +181,6 @@ void Renderer::loop(std::stop_token st) {
 
     frameSync = m_queue.submit({ cmd }, { imgSync, resourceSync });
     m_queue.present(swapchainImage, { frameSync });
-
-    m_graveyard.retire(depthImage, m_flightFrames);
   }
 
   m_device.waitIdle();

@@ -15,11 +15,13 @@ class Swapchain;
 }
 
 class Assets {
+  std::unordered_map<str, grf::Image>     m_textures;
+  std::unordered_map<str, grf::Sampler>   m_samplers;
   std::unordered_map<str, grf::Shader>    m_shaders;
   std::unordered_map<str, grf::Pipeline>  m_pipelines;
 
 public:
-  explicit Assets(const grf::Device& device, grf::Format swapchainFormat);
+  Assets(const grf::Device& device, grf::Format swapchainFormat, grf::Format depthFormat);
   ~Assets() = default;
 
   Assets(const Assets&) = delete;
@@ -27,12 +29,16 @@ public:
   Assets& operator=(const Assets&) = delete;
   Assets& operator=(Assets&&) = delete;
 
+  grf::Image texture(const str& name) const;
+  grf::Sampler sampler(const str& name) const;
   grf::Shader shader(const str& name) const;
   grf::Pipeline pipeline(const str& name) const;
 
 private:
+  void loadTextures(const grf::Device& device);
+  void createSamplers(const grf::Device& device);
   void compileShaders(const grf::Device& device);
-  void createPipelines(const grf::Device& device, grf::Format swapchainFormat);
+  void createPipelines(const grf::Device& device, grf::Format swapchainFormat, grf::Format depthFormat);
 };
 
 class Graveyard {
@@ -65,6 +71,7 @@ public:
 
 private:
   static const u32              m_flightFrames = 2u;
+  static const grf::Format      m_depthFormat = grf::Format::d32_sfloat;
 
   const grf::Device&            m_device;
   const grf::Swapchain&         m_swapchain;
