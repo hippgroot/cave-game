@@ -17,6 +17,8 @@ int main() {
   GUI gui(device, swapchain);
   Profiler profiler(device);
 
+  Random random;
+
   Channel<f32>        beginFrame;
   Channel<Game::Data> newFrame;
 

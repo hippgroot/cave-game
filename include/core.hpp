@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FastNoiseLite.h"
 #include "grf/types.hpp"
 
 #include <chrono>
@@ -10,6 +11,7 @@
 #include <mutex>
 #include <optional>
 #include <print>
+#include <random>
 #include <string_view>
 #include <stop_token>
 #include <thread>
@@ -191,5 +193,42 @@ private:
         logging::error("Job failed: {}", e.what());
       }
     }
+  }
+};
+
+class Random {
+  std::random_device  m_rd;
+  std::mt19937_64     m_gen;
+  FastNoiseLite       m_surfaceNoise;
+  FastNoiseLite       m_caveNoise;
+  u64                 m_seed;
+
+public:
+  Random() : m_gen(m_rd()), m_seed(static_cast<u64>(m_gen())) {
+    u32 surfaceSeed = m_seed & 0xFFFFFFFFul;
+    u32 caveSeed = (m_seed >> 32) & 0xFFFFFFFFul;
+
+    m_surfaceNoise.SetSeed(surfaceSeed);
+    m_surfaceNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    m_surfaceNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+    m_surfaceNoise.SetFrequency(0.005f);
+    m_surfaceNoise.SetFractalOctaves(5);
+    m_surfaceNoise.SetFractalGain(0.5f);
+    m_surfaceNoise.SetFractalLacunarity(2.0f);
+
+    m_caveNoise.SetSeed(caveSeed);
+    m_caveNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+    m_surfaceNoise.SetFrequency(0.08f);
+  };
+
+  template <typename T>
+  T value() { return static_cast<T>(m_gen()); }
+
+  f32 surfaceNoise(f32 x, f32 z) const {
+    return m_surfaceNoise.GetNoise(x, z) * 0.5f + 0.5f;
+  }
+
+  f32 caveNoise(f32 x, f32 y, f32 z) const {
+    return m_caveNoise.GetNoise(x, y, z);
   }
 };
