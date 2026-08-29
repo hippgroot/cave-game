@@ -43,7 +43,6 @@ int main() {
     window.pollEvents();
     profiler.logFrameTime(dt);
     game.update(dt);
-    game.drawGUI();
 
     newFrame.send(game.snapshot());
   }

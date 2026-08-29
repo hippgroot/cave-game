@@ -48,6 +48,10 @@ public:
   Game& operator=(Game&&) = delete;
 
   void update(f32 dt);
-  void drawGUI();
   Data snapshot() const;
+
+private:
+  void processInput(f32 dt);
+  void drawGUI();
+
 };

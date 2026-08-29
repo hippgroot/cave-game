@@ -12,6 +12,23 @@ Game::Game(const Game::Info& info)
 {}
 
 void Game::update(f32 dt) {
+  processInput(dt);
+  drawGUI();
+}
+
+Game::Data Game::snapshot() const {
+  f32 aspect = static_cast<f32>(m_window.width()) / static_cast<f32>(m_window.height());
+  mat4 projView = m_camera.proj(m_settings.fov, aspect) * m_camera.view();
+
+  return Data{
+    .guiSnapshot    = m_gui.snapshot(),
+    .cameraProjView = projView,
+    .cameraFrustrum = m_camera.frustrum(projView),
+    .cameraPosition = m_camera.position()
+  };
+}
+
+void Game::processInput(f32 dt) {
   static const f32 _speed = 10.0f;
   if (m_gui.ownsInput()) return;
 
@@ -32,16 +49,4 @@ void Game::update(f32 dt) {
 void Game::drawGUI() {
   m_gui.newFrame();
   m_profiler.draw();
-}
-
-Game::Data Game::snapshot() const {
-  f32 aspect = static_cast<f32>(m_window.width()) / static_cast<f32>(m_window.height());
-  mat4 projView = m_camera.proj(m_settings.fov, aspect) * m_camera.view();
-
-  return Data{
-    .guiSnapshot    = m_gui.snapshot(),
-    .cameraProjView = projView,
-    .cameraFrustrum = m_camera.frustrum(projView),
-    .cameraPosition = m_camera.position()
-  };
 }
