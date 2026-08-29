@@ -47,6 +47,8 @@ void Assets::loadTextures(const Device& device) {
     logging::general("- {} ({})", name, image.sampledHeapIndex());
   };
 
+  logging::general("Loading Textures...");
+
   load("default.png");
   load("grass_block.png");
   load("dirt_block.png");
@@ -61,7 +63,7 @@ void Assets::createSamplers(const Device& device) {
     logging::general("- {} ({})", name, s.heapIndex());
   };
 
-  logging::general("Loading Textures...");
+  logging::general("Creating Samplers...");
 
   createSampler("nearest_repeat", Sampler::Info{
     .magFilter = Filter::Nearest,
