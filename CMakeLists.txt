@@ -30,6 +30,9 @@ target_compile_definitions(cave-game PRIVATE
   ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
-target_include_directories(cave-game PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(cave-game PRIVATE
+  ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/external/FastNoiseLite/Cpp
+)
 
 target_link_libraries(cave-game PRIVATE grf)
