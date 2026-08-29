@@ -17,10 +17,11 @@ int main() {
   GUI gui(device, swapchain);
   Profiler profiler(device);
 
-  Random random;
+  Random rand;
 
-  Channel<f32>        beginFrame;
-  Channel<Game::Data> newFrame;
+  Channel<f32>            beginFrame;
+  Channel<Game::Data>     newFrame;
+  Channel<World::GenRes>  chunkGenerated;
 
   JobPool jobPool;
 
@@ -34,9 +35,12 @@ int main() {
   });
 
   Game game(Game::Info{
-    .window   = window,
-    .gui      = gui,
-    .profiler = profiler
+    .window         = window,
+    .gui            = gui,
+    .profiler       = profiler,
+    .rand           = rand,
+    .chunkGenerated = chunkGenerated,
+    .jobPool        = jobPool
   });
 
   while (!window.shouldClose()) {

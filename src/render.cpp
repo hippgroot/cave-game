@@ -53,6 +53,7 @@ void Assets::loadTextures(const Device& device) {
   load("grass_block.png");
   load("dirt_block.png");
   load("stone_block.png");
+  load("bedrock_block.png");
 }
 
 void Assets::createSamplers(const Device& device) {

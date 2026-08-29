@@ -8,6 +8,7 @@
 #include <deque>
 #include <format>
 #include <functional>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <print>
@@ -146,7 +147,6 @@ public:
 };
 
 class JobPool {
-  static const u32 _threadCount = 4u;
   using Job = std::function<void()>;
 
   std::mutex                  m_mutex;
@@ -189,7 +189,7 @@ private:
       try {
         job();
       }
-      catch (std::exception e) {
+      catch (const std::exception& e) {
         logging::error("Job failed: {}", e.what());
       }
     }
@@ -197,6 +197,7 @@ private:
 };
 
 class Random {
+  std::mutex          m_mutex;
   std::random_device  m_rd;
   std::mt19937_64     m_gen;
   FastNoiseLite       m_surfaceNoise;
@@ -218,17 +219,34 @@ public:
 
     m_caveNoise.SetSeed(caveSeed);
     m_caveNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-    m_surfaceNoise.SetFrequency(0.08f);
+    m_caveNoise.SetFrequency(0.08f);
   };
 
-  template <typename T>
-  T value() { return static_cast<T>(m_gen()); }
-
-  f32 surfaceNoise(f32 x, f32 z) const {
-    return m_surfaceNoise.GetNoise(x, z) * 0.5f + 0.5f;
+  template <typename T = u32>
+  T i(T min = std::numeric_limits<T>::min(), T max = std::numeric_limits<T>::max()) {
+    std::lock_guard lock(m_mutex);
+    return std::uniform_int_distribution<T>(min, max)(m_gen);
   }
 
-  f32 caveNoise(f32 x, f32 y, f32 z) const {
+  template <typename T = f32>
+  T f(T min = 0.0, T max = 1.0) {
+    std::lock_guard lock(m_mutex);
+    return std::uniform_real_distribution<T>(min, max)(m_gen);
+  }
+
+  inline f32 surfaceNoise(f32 x, f32 z) const {
+    return m_surfaceNoise.GetNoise(x, z);
+  }
+
+  inline f32 caveNoise(f32 x, f32 y, f32 z) const {
     return m_caveNoise.GetNoise(x, y, z);
+  }
+};
+
+struct ivec2_hash {
+  std::size_t operator()(ivec2 v) const {
+    uvec2 uv = uvec2(v);
+    u64 seed = (u64(uv.x) << 32) | u64(uv.y);
+    return std::hash<u64>{}(seed);
   }
 };

@@ -8,15 +8,24 @@ using namespace grf;
 Game::Game(const Game::Info& info)
 : m_window(info.window),
   m_gui(info.gui),
-  m_profiler(info.profiler)
-{}
+  m_profiler(info.profiler),
+  m_world(info.rand, info.chunkGenerated, info.jobPool)
+{
+  vec2 planePos(m_camera.position().x, m_camera.position().z);
+  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size())));
+  m_world.updateChunks(currChunk, m_settings.viewDistance);
+}
 
 void Game::update(f32 dt) {
   processInput(dt);
   drawGUI();
+
+  vec2 planePos(m_camera.position().x, m_camera.position().z);
+  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size())));
+  m_world.updateChunks(currChunk, m_settings.viewDistance);
 }
 
-Game::Data Game::snapshot() const {
+Game::Data Game::snapshot() {
   f32 aspect = static_cast<f32>(m_window.width()) / static_cast<f32>(m_window.height());
   mat4 projView = m_camera.proj(m_settings.fov, aspect) * m_camera.view();
 
@@ -24,7 +33,9 @@ Game::Data Game::snapshot() const {
     .guiSnapshot    = m_gui.snapshot(),
     .cameraProjView = projView,
     .cameraFrustrum = m_camera.frustrum(projView),
-    .cameraPosition = m_camera.position()
+    .cameraPosition = m_camera.position(),
+    .addedChunks    = std::move(m_world.addedChunks()),
+    .removedChunks  = std::move(m_world.removedChunks())
   };
 }
 

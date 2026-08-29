@@ -1,6 +1,7 @@
 #pragma once
 
 #include "game_objects.hpp"
+#include "world/world.hpp"
 
 #include "grf/gui.hpp"
 
@@ -13,14 +14,18 @@ class Window;
 class Game {
 public:
   struct Info {
-    const grf::Window&    window;
-    const grf::GUI&       gui;
-    const grf::Profiler&  profiler;
+    const grf::Window&      window;
+    const grf::GUI&         gui;
+    const grf::Profiler&    profiler;
+    Random&                 rand;
+    Channel<World::GenRes>& chunkGenerated;
+    JobPool&                jobPool;
   };
 
   struct Settings {
     f32 fov = glm::radians(70.0f);
     f32 sensitivity = 1.0f;
+    i32 viewDistance = 3;
   };
 
   struct Data {
@@ -28,6 +33,8 @@ public:
     mat4                cameraProjView;
     Camera::Frustrum    cameraFrustrum;
     vec3                cameraPosition;
+    World::AddedChunks  addedChunks;
+    std::vector<ivec2>  removedChunks;
   };
 
 private:
@@ -36,6 +43,7 @@ private:
   const grf::Profiler&  m_profiler;
 
   Settings              m_settings;
+  World                 m_world;
   Camera                m_camera;
 
 public:
@@ -48,7 +56,7 @@ public:
   Game& operator=(Game&&) = delete;
 
   void update(f32 dt);
-  Data snapshot() const;
+  Data snapshot();
 
 private:
   void processInput(f32 dt);

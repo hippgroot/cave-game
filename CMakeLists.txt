@@ -12,6 +12,9 @@ set(GRF_BUILD_EXAMPLES OFF)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/grf)
 
 add_executable(cave-game
+  ${CMAKE_SOURCE_DIR}/game/world/world.hpp
+  ${CMAKE_SOURCE_DIR}/game/world/world.cpp
+
   ${CMAKE_SOURCE_DIR}/include/core.hpp
   ${CMAKE_SOURCE_DIR}/include/game.hpp
   ${CMAKE_SOURCE_DIR}/include/game_objects.hpp
@@ -32,6 +35,7 @@ target_compile_definitions(cave-game PRIVATE
 
 target_include_directories(cave-game PRIVATE
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/game
   ${CMAKE_SOURCE_DIR}/external/FastNoiseLite/Cpp
 )
 
