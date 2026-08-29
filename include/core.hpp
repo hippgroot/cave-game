@@ -6,11 +6,13 @@
 #include <condition_variable>
 #include <deque>
 #include <format>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <print>
 #include <string_view>
 #include <stop_token>
+#include <thread>
 
 using i8    = grf::i8;
 using i16   = grf::i16;
@@ -41,15 +43,15 @@ namespace logging {
 enum class Thread {
   main,
   render,
-  chunkgen
+  worker
 };
 
 constexpr std::string_view to_string(Thread thread) {
   switch (thread) {
   using enum Thread;
-  case main:      return "main";
-  case render:    return "render";
-  case chunkgen:  return "chunkgen";
+  case main:    return "main";
+  case render:  return "render";
+  case worker:  return "worker";
   }
   return "unknown";
 }
@@ -138,5 +140,56 @@ public:
     m_queue.pop_front();
 
     return std::move(data);
+  }
+};
+
+class JobPool {
+  static const u32 _threadCount = 4u;
+  using Job = std::function<void()>;
+
+  std::mutex                  m_mutex;
+  std::condition_variable_any m_cv;
+  std::deque<Job>             m_jobs;
+  std::vector<std::jthread>   m_threads;
+
+public:
+  JobPool() {
+    u32 threadCount = std::max(1u, std::thread::hardware_concurrency() - 2u);
+    logging::general("Worker threads: {}", threadCount);
+
+    m_threads.resize(threadCount);
+    for (auto& thread : m_threads)
+      thread = std::jthread([this](std::stop_token st){ loop(st); });
+  }
+
+  void submit(Job job) {
+  {
+    std::lock_guard lock(m_mutex);
+    m_jobs.push_back(std::move(job));
+  }
+    m_cv.notify_one();
+  }
+
+private:
+  void loop(std::stop_token st) {
+    register_thread(logging::Thread::worker);
+    while (!st.stop_requested()) {
+      std::unique_lock lock(m_mutex);
+
+      m_cv.wait(lock, st, [this]{ return !m_jobs.empty(); });
+      if (m_jobs.empty() || st.stop_requested()) return;
+
+      Job job = std::move(m_jobs.front());
+      m_jobs.pop_front();
+
+      lock.unlock();
+
+      try {
+        job();
+      }
+      catch (std::exception e) {
+        logging::error("Job failed: {}", e.what());
+      }
+    }
   }
 };

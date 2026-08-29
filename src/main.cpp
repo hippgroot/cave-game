@@ -20,6 +20,8 @@ int main() {
   Channel<f32>        beginFrame;
   Channel<Game::Data> newFrame;
 
+  JobPool jobPool;
+
   Renderer renderer(Renderer::Info{
     .device     = device,
     .swapchain  = swapchain,
