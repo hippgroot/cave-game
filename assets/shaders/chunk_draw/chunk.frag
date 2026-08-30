@@ -10,7 +10,7 @@ layout(buffer_reference) readonly buffer TexLUT {
 };
 
 layout(push_constant) uniform PC {
-layout(offset = 96)
+layout(offset = 40)
   TexLUT  texLUT;
   uint    nearestRepeatSampler;
 } _Constants;

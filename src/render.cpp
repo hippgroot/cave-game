@@ -167,7 +167,12 @@ Renderer::Renderer(const Info& info)
     .usage  = ImageUsage::DepthAttachment
   });
 
-  m_thread    = std::jthread([this](std::stop_token st){ loop(st); });
+  m_cameraBuffer = m_device.createBuffer(Buffer::Info{
+    .size   = sizeof(Camera::Data),
+    .intent = BufferIntent::GPUOnly
+  });
+
+  m_thread = std::jthread([this](std::stop_token st){ loop(st); });
 }
 
 void Renderer::loop(std::stop_token st) {
@@ -195,6 +200,7 @@ void Renderer::loop(std::stop_token st) {
       });
     }
 
+    updateCameraData(gameData.cameraData);
     updateChunkCache(gameData.addedChunks, gameData.removedChunks);
 
     cmd.begin();
@@ -202,7 +208,7 @@ void Renderer::loop(std::stop_token st) {
     cmd.transition(swapchainImage, Layout::ColorAttachmentOptimal);
     cmd.transition(m_depthImage, Layout::DepthAttachmentOptimal);
 
-    renderChunks(cmd, swapchainImage, gameData.cameraProjView, gameData.cameraFrustrum);
+    renderChunks(cmd, swapchainImage);
     renderGUI(cmd, swapchainImage, std::move(gameData.guiSnapshot));
 
     cmd.transition(swapchainImage, Layout::PresentSrc);
@@ -215,6 +221,21 @@ void Renderer::loop(std::stop_token st) {
   }
 
   m_device.waitIdle();
+}
+
+void Renderer::updateCameraData(std::optional<Camera::UpdateData>& updateData) {
+  if (!updateData) return;
+  auto [frustum, data] = std::move(*updateData);
+
+  m_graveyard.retire(m_cameraBuffer, m_flightFrames);
+
+  m_cameraBuffer = m_device.createBuffer(Buffer::Info{
+    .size   = sizeof(Camera::Data),
+    .intent = BufferIntent::GPUOnly
+  });
+  m_cameraBuffer.write(data);
+
+  m_frustum = std::move(frustum);
 }
 
 void Renderer::updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks) {
@@ -256,11 +277,11 @@ void Renderer::updateChunkCache(const World::AddedChunks& addedChunks, const std
   }
 }
 
-void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage, const mat4& projView, const Camera::Frustrum& frustrum) {
+void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage) {
   struct PC {
     u64   vertBuf;
     u64   blockBuf;
-    mat4  projView;
+    u64   camBuf;
     ivec2 chunkCoord;
     i32   chunkSize;
     u64   texLUT;
@@ -279,12 +300,12 @@ void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage, co
 
     vec3 mn = (chunkCoord - vec3(0.5f, 0.0f, 0.5f)) * static_cast<f32>(Chunk::size());
     vec3 mx = mn + vec3(Chunk::size(), Chunk::height(), Chunk::size());
-    if (!frustrum.intersects(mn, mx)) continue;
+    if (!m_frustum.intersects(mn, mx)) continue;
 
     PC pc{
       .vertBuf              = mesh.vertexBuffer.address(),
       .blockBuf             = mesh.blocksBuffer.address(),
-      .projView             = projView,
+      .camBuf               = m_cameraBuffer.address(),
       .chunkCoord           = coord,
       .chunkSize            = Chunk::size(),
       .texLUT               = m_assets.textureLUT().address(),

@@ -19,11 +19,9 @@ add_executable(cave-game
 
   ${CMAKE_SOURCE_DIR}/include/core.hpp
   ${CMAKE_SOURCE_DIR}/include/game.hpp
-  ${CMAKE_SOURCE_DIR}/include/game_objects.hpp
   ${CMAKE_SOURCE_DIR}/include/render.hpp
 
   ${CMAKE_SOURCE_DIR}/src/game.cpp
-  ${CMAKE_SOURCE_DIR}/src/game_objects.cpp
   ${CMAKE_SOURCE_DIR}/src/main.cpp
   ${CMAKE_SOURCE_DIR}/src/render.cpp
 )

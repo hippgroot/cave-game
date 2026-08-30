@@ -97,11 +97,13 @@ private:
   Assets                        m_assets;
   Graveyard                     m_graveyard;
   ChunkCache                    m_chunkCache;
+  Camera::Frustum               m_frustum;
 
   grf::Queue                    m_queue;
   grf::Ring<grf::CommandBuffer> m_cmdRing;
   grf::Ring<grf::Sync>          m_syncRing;
   grf::Image                    m_depthImage;
+  grf::Buffer                   m_cameraBuffer;
 
   std::jthread                  m_thread;
 
@@ -116,7 +118,8 @@ public:
 
 private:
   void loop(std::stop_token st);
+  void updateCameraData(std::optional<Camera::UpdateData>&);
   void updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks);
-  void renderChunks(grf::CommandBuffer cmd, grf::SwapchainImage swapchainImage, const mat4& projView, const Camera::Frustrum& frustrum);
+  void renderChunks(grf::CommandBuffer cmd, grf::SwapchainImage swapchainImage);
   void renderGUI(grf::CommandBuffer cmd, grf::SwapchainImage swapchainImage, grf::GUI::DrawData guiSnapshot);
 };

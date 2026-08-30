@@ -40,6 +40,7 @@ using uvec4 = grf::uvec4;
 using mat2  = grf::mat2;
 using mat3  = grf::mat3;
 using mat4  = grf::mat4;
+using quat  = glm::quat;
 
 namespace logging {
 
