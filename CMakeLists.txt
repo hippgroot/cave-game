@@ -14,6 +14,8 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/external/grf)
 add_executable(cave-game
   ${CMAKE_SOURCE_DIR}/game/world/world.hpp
   ${CMAKE_SOURCE_DIR}/game/world/world.cpp
+  ${CMAKE_SOURCE_DIR}/game/camera/camera.hpp
+  ${CMAKE_SOURCE_DIR}/game/camera/camera.cpp
 
   ${CMAKE_SOURCE_DIR}/include/core.hpp
   ${CMAKE_SOURCE_DIR}/include/game.hpp

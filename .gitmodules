@@ -1,6 +1,6 @@
 [submodule "external/grf"]
 	path = external/grf
-	url = git@github.com:hippgroot/GRF.git
+	url = https://github.com/hippgroot/GRF.git
 [submodule "external/FastNoiseLite"]
 	path = external/FastNoiseLite
 	url = https://github.com/Auburn/FastNoiseLite.git
