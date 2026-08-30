@@ -19,7 +19,7 @@ private:
   f32  m_far = 10000.0f;
 
 public:
-  Camera(vec3 position = vec3(0.0f, 0.0f, 5.0f), vec3 target = vec3(0.0f));
+  Camera(vec3 position = vec3(0.0f, 256.0f, 0.0f), vec3 target = vec3(0.0f, -5.0f, 10.0f));
   ~Camera() = default;
 
   Camera(const Camera&) = default;

@@ -1,4 +1,6 @@
 #include "render.hpp"
+#include "grf/queue.hpp"
+#include "world/world.hpp"
 
 #include <filesystem>
 
@@ -28,9 +30,15 @@ Pipeline Assets::pipeline(const str& name) const {
   return m_pipelines.at(name);
 }
 
+Buffer Assets::textureLUT() const {
+  return m_textureIndexLUT;
+}
+
 void Assets::loadTextures(const Device& device) {
   const fs::path _dir = fs::path(ASSETS_DIR)/"textures";
-  const auto load = [this, &device, &_dir](const str& filename){
+
+  std::array<u32, static_cast<u32>(Block::Invalid) + 1> lut;
+  const auto load = [this, &device, &_dir, &lut](const str& filename, Block block){
     fs::path path = _dir/filename;
     str name = path.stem().string();
     Image::Data data = Image::getDataFromFile(path);
@@ -44,16 +52,24 @@ void Assets::loadTextures(const Device& device) {
     image.write(data.bytes, Layout::ShaderReadOptimal);
 
     m_textures.emplace(name, image);
+    lut[static_cast<u32>(block)] = image.sampledHeapIndex();
+
     logging::general("- {} ({})", name, image.sampledHeapIndex());
   };
 
   logging::general("Loading Textures...");
 
-  load("default.png");
-  load("grass_block.png");
-  load("dirt_block.png");
-  load("stone_block.png");
-  load("bedrock_block.png");
+  load("default.png", Block::Invalid);
+  load("grass_block.png", Block::Grass);
+  load("dirt_block.png", Block::Dirt);
+  load("stone_block.png", Block::Stone);
+  load("bedrock_block.png", Block::Bedrock);
+
+  m_textureIndexLUT = device.createBuffer(Buffer::Info{
+    .size   = static_cast<u32>(sizeof(u32) * lut.size()),
+    .intent = BufferIntent::GPUOnly
+  });
+  m_textureIndexLUT.write(lut);
 }
 
 void Assets::createSamplers(const Device& device) {
@@ -109,7 +125,6 @@ void Assets::createPipelines(const Device& device, Format swapchainFormat, Forma
     GraphicsPipelineSettings{
       .colorFormats = { swapchainFormat },
       .depthFormat  = depthFormat,
-      .cullMode     = CullMode::None,
       .depthTest    = true,
       .depthWrite   = true,
       .blends = {
@@ -145,6 +160,13 @@ Renderer::Renderer(const Info& info)
   m_cmdRing   = m_queue.getCmdRing(m_flightFrames);
   m_syncRing  = m_queue.getSyncRing(m_flightFrames);
 
+  m_depthImage = m_device.createImage(Image::Info{
+    .width  = 1u,
+    .height = 1u,
+    .format = m_depthFormat,
+    .usage  = ImageUsage::DepthAttachment
+  });
+
   m_thread    = std::jthread([this](std::stop_token st){ loop(st); });
 }
 
@@ -162,23 +184,27 @@ void Renderer::loop(std::stop_token st) {
     m_beginFrame.send(dt);
     m_graveyard.update();
 
-    updateChunkCache(gameData.addedChunks, gameData.removedChunks);
-
     auto [swapchainImage, imgSync] = m_swapchain.acquireNextImage();
+    if (m_depthImage.width() != swapchainImage.width() || m_depthImage.height() != swapchainImage.height()) {
+      m_graveyard.retire(m_depthImage, m_flightFrames);
+      m_depthImage = m_device.createImage(Image::Info{
+        .width  = swapchainImage.width(),
+        .height = swapchainImage.height(),
+        .format = m_depthFormat,
+        .usage  = ImageUsage::DepthAttachment
+      });
+    }
+
+    updateChunkCache(gameData.addedChunks, gameData.removedChunks);
 
     cmd.begin();
     m_profiler.beginFrame(cmd);
-
     cmd.transition(swapchainImage, Layout::ColorAttachmentOptimal);
-    cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
-      {{ swapchainImage, LoadOp::Clear, StoreOp::Store }}
-    );
+    cmd.transition(m_depthImage, Layout::DepthAttachmentOptimal);
 
-    m_profiler.beginScope(cmd, "gui");
-    m_gui.render(cmd, gameData.guiSnapshot);
-    m_profiler.endScope(cmd);
+    renderChunks(cmd, swapchainImage, gameData.cameraProjView, gameData.cameraFrustrum);
+    renderGUI(cmd, swapchainImage, std::move(gameData.guiSnapshot));
 
-    cmd.endRendering();
     cmd.transition(swapchainImage, Layout::PresentSrc);
     cmd.end();
 
@@ -228,4 +254,60 @@ void Renderer::updateChunkCache(const World::AddedChunks& addedChunks, const std
       .indexCount   = static_cast<u32>(meshData.indices.size())
     });
   }
+}
+
+void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage, const mat4& projView, const Camera::Frustrum& frustrum) {
+  struct PC {
+    u64   vertBuf;
+    u64   blockBuf;
+    mat4  projView;
+    ivec2 chunkCoord;
+    i32   chunkSize;
+    u64   texLUT;
+    u32   nearestRepeatSampler;
+  };
+
+  cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
+    {{ swapchainImage, LoadOp::Clear, StoreOp::Store }},
+    DepthAttachment{ m_depthImage, LoadOp::Clear, StoreOp::DontCare }
+  );
+  cmd.bindPipeline(m_assets.pipeline("chunk_draw"));
+  m_profiler.beginScope(cmd, "chunk draw");
+
+  for (const auto& [coord, mesh] : m_chunkCache) {
+    vec3 chunkCoord = vec3(coord.x, 0.0f, coord.y);
+
+    vec3 mn = (chunkCoord - vec3(0.5f, 0.0f, 0.5f)) * static_cast<f32>(Chunk::size());
+    vec3 mx = mn + vec3(Chunk::size(), Chunk::height(), Chunk::size());
+    if (!frustrum.intersects(mn, mx)) continue;
+
+    PC pc{
+      .vertBuf              = mesh.vertexBuffer.address(),
+      .blockBuf             = mesh.blocksBuffer.address(),
+      .projView             = projView,
+      .chunkCoord           = coord,
+      .chunkSize            = Chunk::size(),
+      .texLUT               = m_assets.textureLUT().address(),
+      .nearestRepeatSampler = m_assets.sampler("nearest_repeat").heapIndex()
+    };
+
+    cmd.pushConstants(std::as_bytes(std::span{&pc, 1}));
+    cmd.bindIndexBuffer(mesh.indexBuffer);
+    cmd.drawIndexed(mesh.indexCount);
+  }
+
+  m_profiler.endScope(cmd);
+  cmd.endRendering();
+}
+
+void Renderer::renderGUI(CommandBuffer cmd, SwapchainImage swapchainImage, GUI::DrawData guiSnapshot) {
+  cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
+    {{ swapchainImage, LoadOp::Load, StoreOp::Store }}
+  );
+
+  m_profiler.beginScope(cmd, "gui");
+  m_gui.render(cmd, guiSnapshot);
+  m_profiler.endScope(cmd);
+
+  cmd.endRendering();
 }

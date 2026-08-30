@@ -71,13 +71,15 @@ std::vector<Block> World::generateBlocks(Random& rand, ivec2 coord) {
   static const i32 _genSize = Chunk::size() + 2;
   static const i32 _planeSize = _genSize * _genSize;
 
+  vec2 center = (vec2(coord) - vec2(0.5f)) * static_cast<f32>(Chunk::size());
+
   std::vector<i32> heights(_planeSize);
   for (i32 i = 0; i < static_cast<i32>(heights.size()); ++i) {
     i32 x = i % _genSize;
     i32 z = i / _genSize;
 
-    f32 wx = static_cast<f32>(coord.x * Chunk::size() + x - 1);
-    f32 wz = static_cast<f32>(coord.y * Chunk::size() + z - 1);
+    f32 wx = center.x + static_cast<f32>(x - 1);
+    f32 wz = center.y + static_cast<f32>(z - 1);
 
     f32 h = rand.surfaceNoise(wx, wz) * 0.5f + 0.5f;
     heights[i] = static_cast<i32>(h * static_cast<f32>(Chunk::height() - 1));
@@ -96,8 +98,8 @@ std::vector<Block> World::generateBlocks(Random& rand, ivec2 coord) {
       continue;
     }
 
-    f32 wx = static_cast<f32>(coord.x * Chunk::size() + x - 1);
-    f32 wz = static_cast<f32>(coord.y * Chunk::size() + z - 1);
+    f32 wx = center.x + static_cast<f32>(x - 1);
+    f32 wz = center.y + static_cast<f32>(z - 1);
 
     bool caveMask = y > 0 && rand.caveNoise(wx, static_cast<f32>(y), wz) > _caveThreshold;
 

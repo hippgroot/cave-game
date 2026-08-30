@@ -3,6 +3,7 @@
 #include "game.hpp"
 
 #include "grf/device.hpp"
+#include "grf/queue.hpp"
 
 #include <stop_token>
 #include <thread>
@@ -20,6 +21,8 @@ class Assets {
   std::unordered_map<str, grf::Shader>    m_shaders;
   std::unordered_map<str, grf::Pipeline>  m_pipelines;
 
+  grf::Buffer m_textureIndexLUT;
+
 public:
   Assets(const grf::Device& device, grf::Format swapchainFormat, grf::Format depthFormat);
   ~Assets() = default;
@@ -33,6 +36,7 @@ public:
   grf::Sampler sampler(const str& name) const;
   grf::Shader shader(const str& name) const;
   grf::Pipeline pipeline(const str& name) const;
+  grf::Buffer textureLUT() const;
 
 private:
   void loadTextures(const grf::Device& device);
@@ -97,6 +101,7 @@ private:
   grf::Queue                    m_queue;
   grf::Ring<grf::CommandBuffer> m_cmdRing;
   grf::Ring<grf::Sync>          m_syncRing;
+  grf::Image                    m_depthImage;
 
   std::jthread                  m_thread;
 
@@ -112,4 +117,6 @@ public:
 private:
   void loop(std::stop_token st);
   void updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks);
+  void renderChunks(grf::CommandBuffer cmd, grf::SwapchainImage swapchainImage, const mat4& projView, const Camera::Frustrum& frustrum);
+  void renderGUI(grf::CommandBuffer cmd, grf::SwapchainImage swapchainImage, grf::GUI::DrawData guiSnapshot);
 };

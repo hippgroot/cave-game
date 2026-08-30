@@ -12,7 +12,7 @@ Game::Game(const Game::Info& info)
   m_world(info.rand, info.chunkGenerated, info.jobPool)
 {
   vec2 planePos(m_camera.position().x, m_camera.position().z);
-  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size())));
+  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size()) + 0.5f));
   m_world.updateChunks(currChunk, m_settings.viewDistance);
 }
 
@@ -21,7 +21,7 @@ void Game::update(f32 dt) {
   drawGUI();
 
   vec2 planePos(m_camera.position().x, m_camera.position().z);
-  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size())));
+  ivec2 currChunk(glm::floor(planePos / static_cast<f32>(Chunk::size()) + 0.5f));
   m_world.updateChunks(currChunk, m_settings.viewDistance);
 }
 
