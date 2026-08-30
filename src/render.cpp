@@ -268,7 +268,7 @@ void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage, co
   };
 
   cmd.beginRendering(swapchainImage.width(), swapchainImage.height(),
-    {{ swapchainImage, LoadOp::Clear, StoreOp::Store }},
+    {{ swapchainImage, LoadOp::Clear, StoreOp::Store, { 0.1f, 0.2f, 0.5f, 1.0f } }},
     DepthAttachment{ m_depthImage, LoadOp::Clear, StoreOp::DontCare }
   );
   cmd.bindPipeline(m_assets.pipeline("chunk_draw"));
