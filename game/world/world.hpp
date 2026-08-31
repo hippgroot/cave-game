@@ -1,10 +1,9 @@
 #pragma once
 
-#include "chunk.hpp"
-#include "thread/channel.hpp"
-#include "thread/job_pool.hpp"
-#include "random.hpp"
-#include "core/mesh.hpp"
+#include "./chunk.hpp"
+
+#include "engine/core.hpp"
+#include "include/random.hpp"
 
 #include <limits>
 

@@ -1,9 +1,7 @@
 #pragma once
 
-#include "core/camera.hpp"
-#include "core/types.hpp"
-#include "renderer.hpp"
-#include "world/world.hpp"
+#include "engine/render.hpp"
+#include "game/world/world.hpp"
 
 #include "grf/gui.hpp"
 

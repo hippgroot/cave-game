@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/types.hpp"
+#include "engine/core.hpp"
 
 class Camera {
 public:

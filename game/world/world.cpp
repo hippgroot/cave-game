@@ -1,6 +1,7 @@
 #include "world.hpp"
 
 #include <algorithm>
+#include <span>
 
 Chunk::Chunk(u32 meshID, ivec2 coord, std::vector<Block> blocks)
 : m_meshID(meshID),

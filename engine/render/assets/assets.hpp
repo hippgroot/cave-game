@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hpp"
+#include "engine/core.hpp"
 
 #include "grf/resources.hpp"
 

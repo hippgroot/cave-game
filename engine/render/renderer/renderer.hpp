@@ -1,12 +1,8 @@
 #pragma once
 
-#include "core/assets.hpp"
-#include "core/camera.hpp"
-#include "core/graveyard.hpp"
-#include "core/mesh.hpp"
-#include "grf/queue.hpp"
-#include "grf/types.hpp"
-#include "thread/channel.hpp"
+#include "../assets/assets.hpp"
+#include "../camera/camera.hpp"
+#include "../graveyard/graveyard.hpp"
 
 #include "grf/device.hpp"
 #include "grf/gui.hpp"
@@ -35,6 +31,17 @@ public:
     const grf::Profiler&  profiler;
     Channel<FrameData>&   newFrame;
     Channel<f32>&         beginFrame;
+  };
+
+  struct Mesh {
+    grf::Buffer                 vertexBuffer;
+    grf::Buffer                 indexBuffer;
+    std::optional<grf::Buffer>  auxBuffer;
+    std::vector<std::byte>      pushConstants;
+    AABB                        aabb;
+    u32                         indexCount;
+    u8                          layer;
+    u8                          pipeline;
   };
 
 private:

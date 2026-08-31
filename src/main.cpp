@@ -1,8 +1,9 @@
-#include "core/types.hpp"
-#include "renderer.hpp"
-#include "random.hpp"
-#include "world/world.hpp"
-#include "game.hpp"
+#include "engine/core.hpp"
+#
+#include "game/world/world.hpp"
+
+#include "include/random.hpp"
+#include "include/game.hpp"
 
 #include "grf/gui.hpp"
 #include "grf/window.hpp"

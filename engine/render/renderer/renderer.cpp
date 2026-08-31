@@ -1,5 +1,4 @@
 #include "renderer.hpp"
-#include "core/types.hpp"
 
 #include <algorithm>
 
