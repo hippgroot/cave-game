@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core.hpp"
+#include "core/types.hpp"
 
 class Camera {
 public:
@@ -62,7 +62,9 @@ public:
   Camera& operator=(const Camera&) = default;
   Camera& operator=(Camera&&) = default;
 
-  ivec2 currentChunk() const;
+  static f32 farPlane();
+
+  vec3 position() const;
 
   std::optional<UpdateData> update();
 

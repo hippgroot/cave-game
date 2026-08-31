@@ -2,8 +2,9 @@
 
 #include <algorithm>
 
-Chunk::Chunk(ivec2 coord, std::vector<Block> blocks)
-: m_coord(coord),
+Chunk::Chunk(u32 meshID, ivec2 coord, std::vector<Block> blocks)
+: m_meshID(meshID),
+  m_coord(coord),
   m_blocks(std::move(blocks))
 {}
 
@@ -17,6 +18,10 @@ i32 Chunk::height() {
 
 const ivec2& Chunk::coord() const {
   return m_coord;
+}
+
+u32 Chunk::meshID() const {
+  return m_meshID;
 }
 
 World::World(Random& rand, Channel<GenRes>& chunkGenerated, JobPool& jobPool)
@@ -33,6 +38,16 @@ const std::optional<Chunk>& World::operator[](ivec2 coord) const {
   return m_chunks.at(coord);
 }
 
+ivec2 World::getChunkCoord(vec3 position) {
+  vec2 planarPos(position.x, position.z);
+  return ivec2(glm::floor((planarPos - vec2(0.5f)) / static_cast<f32>(Chunk::size())));
+}
+
+vec3 World::getWorldPosition(ivec2 coord) {
+  vec2 planarPos = (vec2(coord) + vec2(0.5f)) * static_cast<f32>(Chunk::size());
+  return vec3(planarPos.x, 0.0f, planarPos.y);
+}
+
 void World::updateChunks(ivec2 currChunk, i32 viewDistance) {
   bool update = currChunk != m_currChunk;
 
@@ -47,19 +62,44 @@ void World::updateChunks(ivec2 currChunk, i32 viewDistance) {
     requestChunks(viewDistance);
 }
 
-World::AddedChunks World::addedChunks() {
+std::vector<MeshData> World::addedChunks() {
   return std::exchange(m_addedChunks, {});
 }
 
-std::vector<ivec2> World::removedChunks() {
+std::vector<u32> World::removedChunks() {
   return std::exchange(m_removedChunks, {});
 }
 
 void World::job_generateChunk(Random& rand, Channel<GenRes>& chunkGenerated, ivec2 coord) {
-  auto blocks = generateBlocks(rand, coord);
-  auto meshData = generateMesh(blocks);
+  static u32 _meshID = 0u;
 
-  GenRes res = std::make_pair(Chunk(coord, std::move(blocks)), std::move(meshData));
+  auto blocks = generateBlocks(rand, coord);
+  auto bufferData = generateMesh(blocks);
+
+  auto vertices = std::as_bytes(std::span(bufferData.vertices.begin(), bufferData.vertices.end()));
+  auto aux = std::as_bytes(std::span(bufferData.types.begin(), bufferData.types.end()));
+
+  vec3 aabbMin = (vec3(coord.x, 0.0f, coord.y) - vec3(0.5f, 0.0f, 0.5f)) * static_cast<f32>(Chunk::size());
+  AABB aabb{
+    .min = aabbMin,
+    .max = aabbMin + vec3(Chunk::size(), Chunk::height(), Chunk::size())
+  };
+
+  auto pc = std::as_bytes(std::span<const i32>({ coord.x, coord.y, Chunk::size() }));
+
+  u32 meshID = _meshID++;
+  MeshData meshData{
+    .vertices = std::vector<std::byte>(vertices.begin(), vertices.end()),
+    .indices  = std::move(bufferData.indices),
+    .aux      = std::vector<std::byte>(aux.begin(), aux.end()),
+    .pushConstants = std::vector<std::byte>(pc.begin(), pc.end()),
+    .aabb     = std::move(aabb),
+    .pipeline = "chunk_draw",
+    .meshID   = meshID,
+    .layer    = 0
+  };
+
+  GenRes res = std::make_pair(Chunk(meshID, coord, std::move(blocks)), std::move(meshData));
   chunkGenerated.send(std::move(res));
 
   logging::general("Generated chunk ({}, {})", coord.x, coord.y);
@@ -71,7 +111,7 @@ std::vector<Block> World::generateBlocks(Random& rand, ivec2 coord) {
   static const i32 _genSize = Chunk::size() + 2;
   static const i32 _planeSize = _genSize * _genSize;
 
-  vec2 center = (vec2(coord) - vec2(0.5f)) * static_cast<f32>(Chunk::size());
+  vec3 center = getWorldPosition(coord);
 
   std::vector<i32> heights(_planeSize);
   for (i32 i = 0; i < static_cast<i32>(heights.size()); ++i) {
@@ -79,7 +119,7 @@ std::vector<Block> World::generateBlocks(Random& rand, ivec2 coord) {
     i32 z = i / _genSize;
 
     f32 wx = center.x + static_cast<f32>(x - 1);
-    f32 wz = center.y + static_cast<f32>(z - 1);
+    f32 wz = center.z + static_cast<f32>(z - 1);
 
     f32 h = rand.surfaceNoise(wx, wz) * 0.5f + 0.5f;
     heights[i] = static_cast<i32>(h * static_cast<f32>(Chunk::height() - 1));
@@ -99,7 +139,7 @@ std::vector<Block> World::generateBlocks(Random& rand, ivec2 coord) {
     }
 
     f32 wx = center.x + static_cast<f32>(x - 1);
-    f32 wz = center.y + static_cast<f32>(z - 1);
+    f32 wz = center.z + static_cast<f32>(z - 1);
 
     bool caveMask = y > 0 && rand.caveNoise(wx, static_cast<f32>(y), wz) > _caveThreshold;
 
@@ -221,7 +261,7 @@ void World::unloadChunks(i32 unloadDistance) {
     bool unload = std::max(std::abs(d.x), std::abs(d.y)) > unloadDistance;
 
     if (unload && elem.second.has_value())
-      m_removedChunks.emplace_back(elem.first);
+      m_removedChunks.emplace_back(elem.second->meshID());
 
     return unload;
   });
@@ -232,7 +272,7 @@ void World::receiveChunks() {
     auto [chunk, meshData] = std::move(*genopt);
     if (!m_chunks.contains(chunk.coord())) continue;
 
-    m_addedChunks.emplace_back(chunk.coord(), std::move(meshData));
+    m_addedChunks.emplace_back(std::move(meshData));
     m_chunks[chunk.coord()] = std::move(chunk);
   }
 }

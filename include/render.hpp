@@ -97,7 +97,7 @@ private:
   Assets                        m_assets;
   Graveyard                     m_graveyard;
   ChunkCache                    m_chunkCache;
-  Camera::Frustum               m_frustum;
+  Camera::Frustum               m_cameraFrustum;
 
   grf::Queue                    m_queue;
   grf::Ring<grf::CommandBuffer> m_cmdRing;

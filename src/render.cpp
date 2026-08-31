@@ -235,7 +235,7 @@ void Renderer::updateCameraData(std::optional<Camera::UpdateData>& updateData) {
   });
   m_cameraBuffer.write(data);
 
-  m_frustum = std::move(frustum);
+  m_cameraFrustum = std::move(frustum);
 }
 
 void Renderer::updateChunkCache(const World::AddedChunks& addedChunks, const std::vector<ivec2>& removedChunks) {
@@ -300,7 +300,7 @@ void Renderer::renderChunks(CommandBuffer cmd, SwapchainImage swapchainImage) {
 
     vec3 mn = (chunkCoord - vec3(0.5f, 0.0f, 0.5f)) * static_cast<f32>(Chunk::size());
     vec3 mx = mn + vec3(Chunk::size(), Chunk::height(), Chunk::size());
-    if (!m_frustum.intersects(mn, mx)) continue;
+    if (!m_cameraFrustum.intersects(mn, mx)) continue;
 
     PC pc{
       .vertBuf              = mesh.vertexBuffer.address(),

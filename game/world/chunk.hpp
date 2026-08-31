@@ -20,11 +20,12 @@ private:
   static const i32 m_size = 16;
   static const i32 m_height = 256;
 
+  u32                 m_meshID;
   ivec2               m_coord;
   std::vector<Block>  m_blocks;
 
 public:
-  Chunk(ivec2 coord, std::vector<Block> blocks);
+  Chunk(u32 meshID, ivec2 coord, std::vector<Block> blocks);
   ~Chunk() = default;
 
   Chunk(const Chunk&) = default;
@@ -36,4 +37,5 @@ public:
   static i32 height();
 
   const ivec2& coord() const;
+  u32 meshID() const;
 };

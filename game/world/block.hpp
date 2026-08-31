@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core.hpp"
+#include "core/types.hpp"
 
 enum class Block : u8 {
   Air,

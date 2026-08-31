@@ -8,14 +8,6 @@ struct Vertex {
   vec3 norm;
 };
 
-layout(buffer_reference, scalar) readonly buffer VertexBuffer {
-  Vertex vertices[];
-};
-
-layout(buffer_reference) readonly buffer BlocksBuffer {
-  uint blocks[];
-};
-
 layout(buffer_reference, scalar) readonly buffer CameraBuffer {
   mat4  view;
   mat4  proj;
@@ -29,10 +21,29 @@ layout(buffer_reference, scalar) readonly buffer CameraBuffer {
   float far;
 };
 
-layout(push_constant) uniform PC {
-  VertexBuffer  vertexBuffer;
-  BlocksBuffer  blocksBuffer;
+layout(buffer_reference) readonly buffer TextureLUT {
+  uint heapIndices[];
+};
+
+layout(buffer_reference) readonly buffer BlocksBuffer {
+  uint blocks[];
+};
+
+layout(buffer_reference, scalar) readonly buffer VertexBuffer {
+  Vertex vertices[];
+};
+
+layout(buffer_reference, scalar) readonly buffer GlobalsBuffer {
   CameraBuffer  cameraBuffer;
+  TextureLUT    textureLUT;
+  uint          nearestClampSampler;
+  float         dt;
+};
+
+layout(push_constant) uniform PC {
+  BlocksBuffer  blocksBuffer;
+  VertexBuffer  vertexBuffer;
+  GlobalsBuffer globalsBuffer;
   ivec2         chunkCoord;
   int           chunkSize;
 } _Constants;
@@ -41,9 +52,9 @@ layout(location = 0) out vec2 _UV;
 layout(location = 1) out vec3 _Normal;
 layout(location = 2) out flat uint _Block;
 
-#define VERTICES _Constants.vertexBuffer.vertices
 #define BLOCKS _Constants.blocksBuffer.blocks
-#define CAMERA _Constants.cameraBuffer
+#define VERTICES _Constants.vertexBuffer.vertices
+#define CAMERA _Constants.globalsBuffer.cameraBuffer
 
 void main() {
   Vertex v = VERTICES[gl_VertexIndex];

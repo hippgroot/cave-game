@@ -14,7 +14,7 @@ Game::Game(const Game::Info& info)
   uvec2 viewport = uvec2(m_window.width(), m_window.height());
 
   m_camera = Camera(m_settings.fov_deg, viewport, vec3(0.0f, 256.0f, 0.0f), vec2(-45.0f, 0.0f));
-  m_world.updateChunks(m_camera.currentChunk(), m_settings.viewDistance);
+  m_world.updateChunks(World::getChunkCoord(m_camera.position()), m_settings.viewDistance);
 
   m_window.onResize([this](u32 w, u32 h){ m_camera.setViewport(w, h); });
 }
@@ -22,15 +22,14 @@ Game::Game(const Game::Info& info)
 void Game::update(f32 dt) {
   processInput(dt);
   drawGUI();
-  m_world.updateChunks(m_camera.currentChunk(), m_settings.viewDistance);
+  m_world.updateChunks(World::getChunkCoord(m_camera.position()), m_settings.viewDistance);
 }
 
-Game::Data Game::snapshot() {
-  return Data{
+Renderer::FrameData Game::snapshot() {
+  return Renderer::FrameData{
     .guiSnapshot    = m_gui.snapshot(),
     .cameraData     = m_camera.update(),
-    .addedChunks    = std::move(m_world.addedChunks()),
-    .removedChunks  = std::move(m_world.removedChunks())
+    .addedMeshes    = m_world.addedChunks()
   };
 }
 

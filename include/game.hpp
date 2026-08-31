@@ -1,6 +1,8 @@
 #pragma once
 
-#include "camera/camera.hpp"
+#include "core/camera.hpp"
+#include "core/types.hpp"
+#include "renderer.hpp"
 #include "world/world.hpp"
 
 #include "grf/gui.hpp"
@@ -28,13 +30,6 @@ public:
     i32 viewDistance = 12;
   };
 
-  struct Data {
-    grf::GUI::DrawData  guiSnapshot;
-    std::optional<Camera::UpdateData> cameraData;
-    World::AddedChunks  addedChunks;
-    std::vector<ivec2>  removedChunks;
-  };
-
 private:
   grf::Window&          m_window;
   const grf::GUI&       m_gui;
@@ -54,10 +49,9 @@ public:
   Game& operator=(Game&&) = delete;
 
   void update(f32 dt);
-  Data snapshot();
+  Renderer::FrameData snapshot();
 
 private:
   void processInput(f32 dt);
   void drawGUI();
-
 };
