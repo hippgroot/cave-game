@@ -11,8 +11,4 @@ add_library(game STATIC
 
 target_include_directories(game PUBLIC ${CMAKE_SOURCE_DIR})
 
-target_include_directories(game PRIVATE
-  ${CMAKE_SOURCE_DIR}/external/grf/include
-)
-
 target_link_libraries(game PUBLIC engine-core)

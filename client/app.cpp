@@ -191,12 +191,13 @@ void App::gui_mainMenu() {
 
 void App::gui_generateMenu() {
   static Game::WorldConfig _worldConfig{
-    .seed               = (static_cast<u64>(m_rng.i(0)) << 32) | static_cast<u64>(m_rng.i(0)),
+    .seed               = (static_cast<i64>(m_rng.i(0)) << 32) | static_cast<i64>(m_rng.i(0)),
     .surfaceFrequency   = m_rng.f(0.01f),
     .surfaceLacunarity  = m_rng.f(1.001f, 5.0f),
     .surfaceGain        = m_rng.f(0.01f, 0.99f),
+    .surfaceOctaves     = m_rng.i(3, 10),
     .caveFrequency      = m_rng.f(0.01f),
-    .caveThreshold      = m_rng.f()
+    .caveThreshold      = m_rng.f(0.2f, 0.8f)
   };
 
   centerNextWindow();
@@ -219,6 +220,9 @@ void App::gui_generateMenu() {
       configRow("Surface Gain");
       ImGui::SliderFloat("##surfacegain", &_worldConfig.surfaceGain, 0.01f, 0.99f, "%.2f");
 
+      configRow("Surface Octaves");
+      ImGui::SliderInt("##surfaceoctaves", &_worldConfig.surfaceOctaves, 3, 10);
+
       configRow("Cave Frequency");
       ImGui::SliderFloat("##cavefrequency", &_worldConfig.caveFrequency, 0.001f, 0.1f, "%.4f", ImGuiSliderFlags_Logarithmic);
 
@@ -230,11 +234,13 @@ void App::gui_generateMenu() {
     if (ImGui::Button("Back")) {
       m_state = UIState::MainMenu;
       _worldConfig = Game::WorldConfig{
-        .seed               = (static_cast<u64>(m_rng.i(0)) << 32) | static_cast<u64>(m_rng.i(0)),
+        .seed               = (static_cast<i64>(m_rng.i(0)) << 32) | static_cast<i64>(m_rng.i(0)),
         .surfaceFrequency   = m_rng.f(0.001f, 0.1f),
         .surfaceLacunarity  = m_rng.f(1.0f, 5.0f),
         .surfaceGain        = m_rng.f(0.01f, 0.99f),
-        .caveThreshold      = m_rng.f(),
+        .surfaceOctaves     = m_rng.i(3, 10),
+        .caveFrequency      = m_rng.f(0.01f),
+        .caveThreshold      = m_rng.f()
       };
     }
   ImGui::End();

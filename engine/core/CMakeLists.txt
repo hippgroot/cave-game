@@ -8,6 +8,7 @@ add_library(engine-core STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/core.cpp
 )
 
-target_include_directories(engine-core PRIVATE
+target_include_directories(engine-core PUBLIC
+  ${CMAKE_SOURCE_DIR}/external/FastNoiseLite/Cpp
   ${CMAKE_SOURCE_DIR}/external/grf/include
 )

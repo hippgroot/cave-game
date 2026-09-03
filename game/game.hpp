@@ -13,10 +13,11 @@ public:
   };
 
   struct WorldConfig {
-    u64 seed;
+    i64 seed;
     f32 surfaceFrequency;
     f32 surfaceLacunarity;
     f32 surfaceGain;
+    i32 surfaceOctaves;
     f32 caveFrequency;
     f32 caveThreshold;
   };

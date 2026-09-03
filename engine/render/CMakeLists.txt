@@ -9,7 +9,7 @@ add_library(engine-render STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/renderer/renderer.cpp
 )
 
-target_compile_definitions(engine-render PRIVATE
+target_compile_definitions(engine-render PUBLIC
   ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
