@@ -18,6 +18,8 @@ i32 main() {
   GUI gui(device, swapchain);
   Profiler profiler(device);
 
+  Random rng;
+
   Channel<Renderer::FrameData>  newFrame;
   Channel<f32>                  beginFrame;
 
@@ -32,7 +34,7 @@ i32 main() {
 
   JobPool jobPool;
 
-  App app(window, gui, profiler);
+  App app(rng, window, gui, profiler);
 
   while (!window.shouldClose() && !app.exitRequested()) {
     auto dtopt = beginFrame.block_and_receive({});

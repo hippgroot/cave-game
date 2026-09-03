@@ -1,31 +1,16 @@
 #pragma once
 
-#include "block.hpp"
+#include "./block.hpp"
 
 class Chunk {
-public:
-  struct Vertex {
-    vec3 pos;
-    vec2 uv;
-    vec3 norm;
-  };
+  static constexpr i32 m_size = 16;
+  static constexpr i32 m_height = 256;
 
-  struct Mesh {
-    std::vector<Vertex> vertices;
-    std::vector<u32>    indices;
-    std::vector<u32>    types;
-  };
-
-private:
-  static const i32 m_size = 16;
-  static const i32 m_height = 256;
-
-  u32                 m_meshID;
   ivec2               m_coord;
   std::vector<Block>  m_blocks;
 
 public:
-  Chunk(u32 meshID, ivec2 coord, std::vector<Block> blocks);
+  Chunk(ivec2 coord, std::vector<Block> blocks);
   ~Chunk() = default;
 
   Chunk(const Chunk&) = default;
@@ -33,9 +18,11 @@ public:
   Chunk& operator=(const Chunk&) = default;
   Chunk& operator=(Chunk&&) = default;
 
+  Block& operator[](u32 x, u32 y, u32 z);
+  const Block& operator[](u32 x, u32 y, u32 z) const;
+
   static i32 size();
   static i32 height();
 
-  const ivec2& coord() const;
-  u32 meshID() const;
+  ivec2 coord() const;
 };

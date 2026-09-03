@@ -38,7 +38,6 @@ public:
 private:
   static constexpr f32  m_near = 0.1f;
   static constexpr f32  m_far  = 1000.0f;
-  static constexpr f32  m_pitchLimit = glm::radians(89.0f);
   static constexpr vec3 m_worldForward = vec3(0.0f, 0.0f, -1.0f);
   static constexpr vec3 m_worldRight = vec3(1.0f, 0.0f, 0.0f);
   static constexpr vec3 m_worldUp = vec3(0.0f, 1.0f, 0.0f);
@@ -54,7 +53,6 @@ private:
 
 public:
   Camera() = default;
-  Camera(f32 fov_deg, uvec2 viewport, vec3 position = vec3(0.0f), vec2 rotation_deg = vec2(0.0f));
   ~Camera() = default;
 
   Camera(const Camera&) = default;
@@ -63,13 +61,14 @@ public:
   Camera& operator=(Camera&&) = default;
 
   static f32 farPlane();
+  static vec3 worldUp();
+  static vec3 worldRight();
 
   vec3 position() const;
 
   std::optional<UpdateData> update();
 
-  void translate(vec3 delta);
-  void rotate(f32 pitch_deg, f32 yaw_deg);
+  void follow(vec3 position, f32 pitch, f32 yaw);
   void setFOV(f32 fov_deg);
   void setViewport(u32 width, u32 height);
 };

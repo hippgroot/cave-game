@@ -1,15 +1,15 @@
 #include "./camera.hpp"
 
-Camera::Camera(f32 fov_deg, uvec2 viewport, vec3 position, vec2 rotation_deg)
-: m_position(position),
-  m_pitch(std::clamp(glm::radians(rotation_deg.x), -m_pitchLimit, m_pitchLimit)),
-  m_yaw(glm::radians(rotation_deg.y)),
-  m_fov(glm::radians(fov_deg)),
-  m_viewport(viewport)
-{}
-
 f32 Camera::farPlane() {
   return m_far;
+}
+
+vec3 Camera::worldUp() {
+  return m_worldUp;
+}
+
+vec3 Camera::worldRight() {
+  return m_worldRight;
 }
 
 vec3 Camera::position() const {
@@ -57,18 +57,10 @@ std::optional<Camera::UpdateData> Camera::update() {
   });
 }
 
-void Camera::translate(vec3 delta) {
-  quat rotation = glm::angleAxis(m_yaw, m_worldUp) * glm::angleAxis(m_pitch, m_worldRight);
-
-  m_position += rotation * vec3(delta.x, 0.0f, delta.z);
-  m_position.y += delta.y;
-
-  m_dirty = true;
-}
-
-void Camera::rotate(f32 pitch_deg, f32 yaw_deg) {
-  m_pitch = glm::clamp(m_pitch + glm::radians(pitch_deg), -m_pitchLimit, m_pitchLimit);
-  m_yaw += glm::radians(yaw_deg);
+void Camera::follow(vec3 position, f32 pitch, f32 yaw) {
+  m_position = position;
+  m_pitch = pitch;
+  m_yaw = yaw;
   m_dirty = true;
 }
 

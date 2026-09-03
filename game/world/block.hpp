@@ -8,5 +8,5 @@ enum class Block : u8 {
   Dirt,
   Stone,
   Bedrock,
-  Invalid = std::numeric_limits<u8>::max()
+  Default = 255
 };

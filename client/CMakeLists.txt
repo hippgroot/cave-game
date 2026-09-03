@@ -11,4 +11,4 @@ target_compile_definitions(cave-game PRIVATE
   ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
 )
 
-target_link_libraries(cave-game PRIVATE engine-render)
+target_link_libraries(cave-game PRIVATE engine-render game)

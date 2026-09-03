@@ -16,10 +16,20 @@ void centerNextWindow() {
   ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 }
 
+void configRow(const char* label) {
+  ImGui::TableNextRow();
+  ImGui::TableNextColumn();
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted(label);
+  ImGui::TableNextColumn();
+  ImGui::SetNextItemWidth(-FLT_MIN);
 }
 
-App::App(const Window& window, const GUI& gui, const Profiler& profiler)
-: m_window(window),
+}
+
+App::App(Random& rng, const Window& window, const GUI& gui, const Profiler& profiler)
+: m_rng(rng),
+  m_window(window),
   m_gui(gui),
   m_profiler(profiler)
 {
@@ -27,12 +37,19 @@ App::App(const Window& window, const GUI& gui, const Profiler& profiler)
 }
 
 void App::update(f32 dt) {
-  processInput();
+  Game::Input input = processInput(dt);
   drawGUI();
+
+  if (m_game)
+    m_game->update(std::move(input));
 }
 
 bool App::exitRequested() const {
   return m_exitRequested;
+}
+
+std::optional<Camera::UpdateData> App::cameraData() const {
+  return m_camera ? m_camera->update() : std::nullopt;
 }
 
 void App::setupGUIStyle() const {
@@ -110,11 +127,34 @@ void App::setupGUIStyle() const {
   colors[ImGuiCol_SeparatorActive]  = ImVec4(0.36f, 0.40f, 0.60f, 1.00f);
 }
 
-void App::processInput() {
-  if (m_gui.ownsInput()) return;
+Game::Input App::processInput(f32 dt) {
+  Game::Input input{
+    .worldUp = Camera::worldUp(),
+    .worldRight = Camera::worldRight(),
+    .dir = vec3(0.0f),
+    .pitch = 0.0f,
+    .yaw = 0.0f
+  };
+
+  if (m_gui.ownsInput()) return input;
 
   if (m_window.isJustPressed(Key::Escape))
     m_debugEnabled = !m_debugEnabled;
+
+  vec3 dir = glm::normalize(vec3(
+    static_cast<float>(m_window.isPressed(Key::D) - m_window.isPressed(Key::A)),
+    static_cast<float>(m_window.isPressed(Key::Space) - m_window.isPressed(Key::LeftShift)),
+    static_cast<float>(m_window.isPressed(Key::S) - m_window.isPressed(Key::W))
+  ));
+  input.dir = glm::dot(dir, dir) < 1e-4f ? vec3(0.0f) : dir * dt;
+
+  if (m_window.isPressed(MouseButton::Left)) {
+    vec2 cursorDelta = m_window.cursorDelta();
+    input.pitch = cursorDelta.x * m_settings.sensitivity;
+    input.yaw = cursorDelta.y * m_settings.sensitivity;
+  }
+
+  return input;
 }
 
 void App::drawGUI() {
@@ -150,10 +190,53 @@ void App::gui_mainMenu() {
 }
 
 void App::gui_generateMenu() {
+  static Game::WorldConfig _worldConfig{
+    .seed               = (static_cast<u64>(m_rng.i(0)) << 32) | static_cast<u64>(m_rng.i(0)),
+    .surfaceFrequency   = m_rng.f(0.01f),
+    .surfaceLacunarity  = m_rng.f(1.001f, 5.0f),
+    .surfaceGain        = m_rng.f(0.01f, 0.99f),
+    .caveFrequency      = m_rng.f(0.01f),
+    .caveThreshold      = m_rng.f()
+  };
+
   centerNextWindow();
-  ImGui::Begin("Generate World", nullptr, menuWindowFlags | ImGuiWindowFlags_AlwaysAutoResize);
-    if (ImGui::Button("Back"))
+  ImGui::SetNextWindowSize(ImVec2(560.0f, 460.0f));
+  ImGui::Begin("Generate World", nullptr, menuWindowFlags);
+    ImVec2 tableSize(0.0f, -ImGui::GetFrameHeightWithSpacing());
+    if (ImGui::BeginTable("##worldconfig", 2, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg, tableSize)) {
+      ImGui::TableSetupColumn("##item", ImGuiTableColumnFlags_WidthFixed, 220.0f);
+      ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
+
+      configRow("Seed");
+      ImGui::InputScalar("##seed", ImGuiDataType_U64, &_worldConfig.seed);
+
+      configRow("Surface Frequency");
+      ImGui::SliderFloat("##surfacefrequency", &_worldConfig.surfaceFrequency, 0.001f, 0.1f, "%.4f", ImGuiSliderFlags_Logarithmic);
+
+      configRow("Surface Lacunarity");
+      ImGui::SliderFloat("##surfacelacunarity", &_worldConfig.surfaceLacunarity, 1.0f, 5.0f, "%.2f");
+
+      configRow("Surface Gain");
+      ImGui::SliderFloat("##surfacegain", &_worldConfig.surfaceGain, 0.01f, 0.99f, "%.2f");
+
+      configRow("Cave Frequency");
+      ImGui::SliderFloat("##cavefrequency", &_worldConfig.caveFrequency, 0.001f, 0.1f, "%.4f", ImGuiSliderFlags_Logarithmic);
+
+      configRow("Cave Threshold");
+      ImGui::SliderFloat("##cavethreshold", &_worldConfig.caveThreshold, 0.0f, 1.0f, "%.2f");
+
+      ImGui::EndTable();
+    }
+    if (ImGui::Button("Back")) {
       m_state = UIState::MainMenu;
+      _worldConfig = Game::WorldConfig{
+        .seed               = (static_cast<u64>(m_rng.i(0)) << 32) | static_cast<u64>(m_rng.i(0)),
+        .surfaceFrequency   = m_rng.f(0.001f, 0.1f),
+        .surfaceLacunarity  = m_rng.f(1.0f, 5.0f),
+        .surfaceGain        = m_rng.f(0.01f, 0.99f),
+        .caveThreshold      = m_rng.f(),
+      };
+    }
   ImGui::End();
 }
 

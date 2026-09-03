@@ -1,5 +1,6 @@
 #include "./job_pool.hpp"
-#include "./types.hpp"
+#include "./random.hpp"
+#include <random>
 
 JobPool::JobPool() {
   u32 maxThreads = std::thread::hardware_concurrency() - 2u;
@@ -32,4 +33,12 @@ void JobPool::loop(std::stop_token st) {
 
     job();
   }
+}
+
+i32 Random::i(i32 min, i32 max) {
+  return std::uniform_int_distribution<i32>(min, max)(m_gen);
+}
+
+f32 Random::f(f32 min, f32 max) {
+  return std::uniform_real_distribution<f32>(min, max)(m_gen);
 }
