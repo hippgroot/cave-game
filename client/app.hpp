@@ -1,28 +1,42 @@
 #pragma once
 
-#include "engine/core.hpp"
 #include "engine/render.hpp"
-
 #include "game/game.hpp"
 
 enum class UIState {
   Closed,
   MainMenu,
   GenerateMenu,
-  SettingsMenu
+  SettingsMenu,
+  PauseMenu
 };
 
 class App {
+public:
+  struct Info {
+    const grf::Window&    window;
+    const grf::GUI&       gui;
+    const grf::Profiler&  profiler;
+    Random&               rng;
+    Channel<Chunk>&       chunkGenerated;
+    Channel<MeshData>&    meshGenerated;
+    JobPool&              jobPool;
+  };
+
+private:
   struct Settings {
     f32 sensitivity = 0.001f;
     f32 fov_deg = 70.0f;
     i32 viewDistance = 12;
   };
 
-  Random&                 m_rng;
   const grf::Window&      m_window;
   const grf::GUI&         m_gui;
   const grf::Profiler&    m_profiler;
+  Random&                 m_rng;
+  Channel<Chunk>&         m_chunkGenerated;
+  Channel<MeshData>&      m_meshGenerated;
+  JobPool&                m_jobPool;
 
   Settings                m_settings{};
   UIState                 m_state = UIState::MainMenu;
@@ -33,7 +47,7 @@ class App {
   std::unique_ptr<Camera> m_camera;
 
 public:
-  explicit App(Random& rng, const grf::Window& window, const grf::GUI& gui, const grf::Profiler& profiler);
+  explicit App(const Info& info);
   ~App() = default;
 
   App(const App&) = delete;
@@ -54,5 +68,6 @@ private:
   void gui_mainMenu();
   void gui_generateMenu();
   void gui_settingsMenu();
+  void gui_pauseMenu();
   void gui_debugOverlay();
 };

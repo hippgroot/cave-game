@@ -21,6 +21,6 @@ public:
   i32 i(i32 min = std::numeric_limits<i32>::min(), i32 max = std::numeric_limits<i32>::max());
   f32 f(f32 min = 0.0f, f32 max = 1.0f);
 
-  f32 surfaceNoise(i32 seed, f32 frequency, f32 lacunarity, f32 gain, int octaves, vec2 pos);
+  f32 surfaceNoise(i32 seed, f32 frequency, f32 lacunarity, f32 gain, i32 octaves, vec2 pos);
   f32 caveNoise(i32 seed, f32 frequency, vec3 pos);
 };

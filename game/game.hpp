@@ -1,6 +1,9 @@
 #pragma once
 
 #include "player/player.hpp"
+#include "world/world.hpp"
+
+#include <variant>
 
 class Game {
 public:
@@ -10,6 +13,7 @@ public:
     vec3  dir;
     f32   pitch;
     f32   yaw;
+    i32   viewDistance;
   };
 
   struct WorldConfig {
@@ -22,11 +26,25 @@ public:
     f32 caveThreshold;
   };
 
+  struct ChunkLoadEvent {
+    Chunk chunk;
+  };
+
+  struct ChunkUnloadEvent {
+    ivec2 coord;
+  };
+
+  using Event = std::variant<ChunkLoadEvent, ChunkUnloadEvent>;
+
 private:
-  Player m_player;
+  Random&             m_rng;
+  JobPool&            m_jobPool;
+  World               m_world;
+  Player              m_player;
+  std::vector<Event>  m_events;
 
 public:
-  explicit Game(WorldConfig config);
+  explicit Game(Random& rng, JobPool& jobPool, Channel<Chunk>& chunkGenerated, World::Config config);
   ~Game() = default;
 
   Game(const Game&) = delete;
@@ -36,4 +54,5 @@ public:
 
   void update(const Input& input);
   const Player& player() const;
+  std::vector<Event> events();
 };

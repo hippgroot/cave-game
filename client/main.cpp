@@ -22,6 +22,8 @@ i32 main() {
 
   Channel<Renderer::FrameData>  newFrame;
   Channel<f32>                  beginFrame;
+  Channel<Chunk>                chunkGenerated;
+  Channel<MeshData>             meshGenerated;
 
   Renderer renderer(Renderer::Info{
     .device     = device,
@@ -34,7 +36,15 @@ i32 main() {
 
   JobPool jobPool;
 
-  App app(rng, window, gui, profiler);
+  App app(App::Info{
+    .window         = window,
+    .gui            = gui,
+    .profiler       = profiler,
+    .rng            = rng,
+    .chunkGenerated = chunkGenerated,
+    .meshGenerated  = meshGenerated,
+    .jobPool        = jobPool
+  });
 
   while (!window.shouldClose() && !app.exitRequested()) {
     auto dtopt = beginFrame.block_and_receive({});
@@ -49,7 +59,7 @@ i32 main() {
 
     newFrame.send(Renderer::FrameData{
       .guiSnapshot    = gui.snapshot(),
-      .cameraData     = std::nullopt,
+      .cameraData     = std::move(app.cameraData()),
       .addedMeshes    = {},
       .removedMeshes  = {}
     });

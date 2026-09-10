@@ -1,7 +1,7 @@
 add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/app.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/app.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
 )
 
 target_compile_definitions(cave-game PRIVATE

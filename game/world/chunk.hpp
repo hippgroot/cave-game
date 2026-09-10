@@ -18,9 +18,6 @@ public:
   Chunk& operator=(const Chunk&) = default;
   Chunk& operator=(Chunk&&) = default;
 
-  Block& operator[](u32 x, u32 y, u32 z);
-  const Block& operator[](u32 x, u32 y, u32 z) const;
-
   static i32 size();
   static i32 height();
 

@@ -27,11 +27,14 @@ void configRow(const char* label) {
 
 }
 
-App::App(Random& rng, const Window& window, const GUI& gui, const Profiler& profiler)
-: m_rng(rng),
-  m_window(window),
-  m_gui(gui),
-  m_profiler(profiler)
+App::App(const Info& info)
+: m_window(info.window),
+  m_gui(info.gui),
+  m_profiler(info.profiler),
+  m_rng(info.rng),
+  m_chunkGenerated(info.chunkGenerated),
+  m_meshGenerated(info.meshGenerated),
+  m_jobPool(info.jobPool)
 {
   setupGUIStyle();
 }
@@ -40,8 +43,12 @@ void App::update(f32 dt) {
   Game::Input input = processInput(dt);
   drawGUI();
 
-  if (m_game)
-    m_game->update(std::move(input));
+  if (!m_game) return;
+
+  m_game->update(std::move(input));
+
+  auto& player = m_game->player();
+  m_camera->follow(player.position(), player.pitch(), player.yaw());
 }
 
 bool App::exitRequested() const {
@@ -129,29 +136,49 @@ void App::setupGUIStyle() const {
 
 Game::Input App::processInput(f32 dt) {
   Game::Input input{
-    .worldUp = Camera::worldUp(),
-    .worldRight = Camera::worldRight(),
-    .dir = vec3(0.0f),
-    .pitch = 0.0f,
-    .yaw = 0.0f
+    .worldUp      = Camera::worldUp(),
+    .worldRight   = Camera::worldRight(),
+    .dir          = vec3(0.0f),
+    .pitch        = 0.0f,
+    .yaw          = 0.0f,
+    .viewDistance = m_settings.viewDistance
   };
 
-  if (m_gui.ownsInput()) return input;
-
-  if (m_window.isJustPressed(Key::Escape))
+  if (m_window.isJustPressed(Key::F3))
     m_debugEnabled = !m_debugEnabled;
 
-  vec3 dir = glm::normalize(vec3(
-    static_cast<float>(m_window.isPressed(Key::D) - m_window.isPressed(Key::A)),
-    static_cast<float>(m_window.isPressed(Key::Space) - m_window.isPressed(Key::LeftShift)),
-    static_cast<float>(m_window.isPressed(Key::S) - m_window.isPressed(Key::W))
-  ));
-  input.dir = glm::dot(dir, dir) < 1e-4f ? vec3(0.0f) : dir * dt;
+  if (m_window.isJustPressed(Key::Escape)) {
+    switch (m_state) {
+    using enum UIState;
+    case Closed:
+      m_state = PauseMenu;
+      break;
+    case MainMenu:
+      break;
+    case GenerateMenu:
+      m_state = MainMenu;
+      break;
+    case SettingsMenu:
+      m_state = m_game ? PauseMenu : MainMenu;
+      break;
+    case PauseMenu:
+      m_state = Closed;
+    }
+  }
 
-  if (m_window.isPressed(MouseButton::Left)) {
-    vec2 cursorDelta = m_window.cursorDelta();
-    input.pitch = cursorDelta.x * m_settings.sensitivity;
-    input.yaw = cursorDelta.y * m_settings.sensitivity;
+  if (m_state == UIState::Closed && !m_gui.ownsInput()) {
+    vec3 dir = glm::normalize(vec3(
+      static_cast<float>(m_window.isPressed(Key::D) - m_window.isPressed(Key::A)),
+      static_cast<float>(m_window.isPressed(Key::Space) - m_window.isPressed(Key::LeftShift)),
+      static_cast<float>(m_window.isPressed(Key::S) - m_window.isPressed(Key::W))
+    ));
+    input.dir = glm::dot(dir, dir) < 1e-4f ? vec3(0.0f) : dir * dt;
+
+    if (m_window.isPressed(MouseButton::Left)) {
+      vec2 cursorDelta = m_window.cursorDelta();
+      input.pitch = cursorDelta.x * m_settings.sensitivity;
+      input.yaw = cursorDelta.y * m_settings.sensitivity;
+    }
   }
 
   return input;
@@ -174,6 +201,8 @@ void App::drawGUI() {
   case SettingsMenu:
     gui_settingsMenu();
     break;
+  case PauseMenu:
+    gui_pauseMenu();
   }
 }
 
@@ -190,7 +219,7 @@ void App::gui_mainMenu() {
 }
 
 void App::gui_generateMenu() {
-  static Game::WorldConfig _worldConfig{
+  static World::Config _worldConfig{
     .seed               = (static_cast<i64>(m_rng.i(0)) << 32) | static_cast<i64>(m_rng.i(0)),
     .surfaceFrequency   = m_rng.f(0.01f),
     .surfaceLacunarity  = m_rng.f(1.001f, 5.0f),
@@ -231,9 +260,20 @@ void App::gui_generateMenu() {
 
       ImGui::EndTable();
     }
+
+    if (ImGui::Button("Play")) {
+      m_game    = std::make_unique<Game>(m_rng, m_jobPool, m_chunkGenerated, _worldConfig);
+      m_camera  = std::make_unique<Camera>();
+
+      auto& player = m_game->player();
+      m_camera->follow(player.position(), player.pitch(), player.yaw());
+
+      m_state = UIState::Closed;
+    }
+
     if (ImGui::Button("Back")) {
       m_state = UIState::MainMenu;
-      _worldConfig = Game::WorldConfig{
+      _worldConfig = World::Config{
         .seed               = (static_cast<i64>(m_rng.i(0)) << 32) | static_cast<i64>(m_rng.i(0)),
         .surfaceFrequency   = m_rng.f(0.001f, 0.1f),
         .surfaceLacunarity  = m_rng.f(1.0f, 5.0f),
@@ -282,7 +322,24 @@ void App::gui_settingsMenu() {
       ImGui::EndTable();
     }
     if (ImGui::Button("Back"))
+      m_state = m_game ? UIState::PauseMenu : UIState::MainMenu;
+  ImGui::End();
+}
+
+void App::gui_pauseMenu() {
+  centerNextWindow();
+  ImGui::Begin("Paused", nullptr, menuWindowFlags);
+    if (ImGui::Button("Resume"))
+      m_state = UIState::Closed;
+    if (ImGui::Button("Settings"))
+      m_state = UIState::SettingsMenu;
+    if (ImGui::Button("Exit to Main Menu")) {
       m_state = UIState::MainMenu;
+      m_camera.reset();
+      m_game.reset();
+    }
+    if (ImGui::Button("Exit to Desktop"))
+      m_exitRequested = true;
   ImGui::End();
 }
 
