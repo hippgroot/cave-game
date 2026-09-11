@@ -256,7 +256,7 @@ void Renderer::renderGUI(CommandBuffer cmd, SwapchainImage swapchainImage, GUI::
   );
 
   m_profiler.beginScope(cmd, "gui");
-  m_gui.render(cmd);
+  m_gui.render(cmd, guiSnapshot);
   m_profiler.endScope(cmd);
 
   cmd.endRendering();
