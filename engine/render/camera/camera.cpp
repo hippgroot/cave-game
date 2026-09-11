@@ -58,9 +58,12 @@ std::optional<Camera::UpdateData> Camera::update() {
 }
 
 void Camera::follow(vec3 position, f32 pitch, f32 yaw) {
+  if (position == m_position && pitch == m_pitch && yaw == m_yaw) return;
+
   m_position = position;
   m_pitch = pitch;
   m_yaw = yaw;
+
   m_dirty = true;
 }
 

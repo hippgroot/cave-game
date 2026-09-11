@@ -3,7 +3,7 @@
 Game::Game(Random& rng, JobPool& jobPool, Channel<Chunk>& chunkGenerated, World::Config config)
 : m_rng(rng),
   m_jobPool(jobPool),
-  m_world(rng, chunkGenerated, jobPool, std::move(config))
+  m_world(chunkGenerated, jobPool, std::move(config))
 {}
 
 void Game::update(const Input& input) {

@@ -24,7 +24,6 @@ public:
 private:
   using ChunkCache = std::unordered_map<ivec2, std::optional<Chunk>, ivec2_hash>;
 
-  Random&               m_rng;
   Channel<Chunk>&       m_chunkGenerated;
   JobPool&              m_jobPool;
 
@@ -35,7 +34,7 @@ private:
   std::vector<ivec2>    m_removedChunks;
 
 public:
-  World(Random& rng, Channel<Chunk>& chunkGenerated, JobPool& jobPool, Config config);
+  World(Channel<Chunk>& chunkGenerated, JobPool& jobPool, Config config);
   ~World() = default;
 
   World(const World&) = delete;
@@ -54,5 +53,5 @@ private:
   void receiveChunks();
   void requestChunks(ivec2 center, i32 viewDistance);
 
-  static void job_generateChunk(Random& rng, Channel<Chunk>& chunkGenerated, ivec2 coord, Config config);
+  static void job_generateChunk(Channel<Chunk>& chunkGenerated, ivec2 coord, Config config);
 };

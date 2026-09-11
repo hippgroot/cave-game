@@ -141,5 +141,5 @@ void Mesher::job_generateMesh(Channel<MeshResult>& meshGenerated, Chunk chunk, R
     .meshID         = meshID,
     .layer          = 0
   }));
-  logging::general("Generated mesh ({}, {})", coord.x, coord.y);
+  logging::general("Meshed ({}, {})", coord.x, coord.y);
 }

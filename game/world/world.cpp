@@ -1,5 +1,7 @@
 #include "./world.hpp"
 
+#include "FastNoiseLite.h"
+
 #include <algorithm>
 
 Chunk::Chunk(ivec2 coord, std::vector<Block> blocks)
@@ -22,9 +24,8 @@ const std::vector<Block>& Chunk::blocks() const {
   return m_blocks;
 }
 
-World::World(Random& rng, Channel<Chunk>& chunkGenerated, JobPool& jobPool, Config config)
-: m_rng(rng),
-  m_chunkGenerated(chunkGenerated),
+World::World(Channel<Chunk>& chunkGenerated, JobPool& jobPool, Config config)
+: m_chunkGenerated(chunkGenerated),
   m_jobPool(jobPool),
   m_config(std::move(config))
 {}
@@ -95,7 +96,6 @@ void World::requestChunks(ivec2 center, i32 viewDistance) {
     return glm::dot(va, va) < glm::dot(vb, vb);
   });
 
-  Random& rng = m_rng;
   Channel<Chunk>& chunkGenerated = m_chunkGenerated;
   Config& config = m_config;
 
@@ -103,16 +103,28 @@ void World::requestChunks(ivec2 center, i32 viewDistance) {
     ivec2 chunkCoord = center + coord;
     m_chunkCache.emplace(chunkCoord, std::nullopt);
 
-    m_jobPool.submit([&rng, &chunkGenerated, chunkCoord, config]{
-      job_generateChunk(rng, chunkGenerated, chunkCoord, config);
+    m_jobPool.submit([&chunkGenerated, chunkCoord, config]{
+      job_generateChunk(chunkGenerated, chunkCoord, config);
     });
   }
 }
 
-void World::job_generateChunk(Random& rng, Channel<Chunk>& chunkGenerated, ivec2 coord, Config config) {
+void World::job_generateChunk(Channel<Chunk>& chunkGenerated, ivec2 coord, Config config) {
   static const i32 _dirtDepth = 4;
   static const i32 _genSize = Chunk::size() + 2;
   static const i32 _planeSize = _genSize * _genSize;
+
+  FastNoiseLite surfaceNoise;
+  surfaceNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+  surfaceNoise.SetFrequency(config.surfaceFrequency);
+  surfaceNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+  surfaceNoise.SetFractalGain(config.surfaceGain);
+  surfaceNoise.SetFractalLacunarity(config.surfaceLacunarity);
+  surfaceNoise.SetFractalOctaves(config.surfaceOctaves);
+
+  FastNoiseLite caveNoise;
+  caveNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+  caveNoise.SetFrequency(config.caveFrequency);
 
   vec2 planePos = (vec2(coord) + vec2(0.5f)) * static_cast<f32>(Chunk::size());
   vec3 center = vec3(planePos.x, 0.0f, planePos.y);
@@ -128,14 +140,7 @@ void World::job_generateChunk(Random& rng, Channel<Chunk>& chunkGenerated, ivec2
     f32 wx = center.x + static_cast<f32>(x - 1);
     f32 wz = center.z + static_cast<f32>(z - 1);
 
-    f32 h = rng.surfaceNoise(
-      surfaceSeed,
-      config.surfaceFrequency,
-      config.surfaceLacunarity,
-      config.surfaceGain,
-      config.surfaceOctaves,
-      vec2(wx, wz)
-    ) * 0.5f + 0.5f;
+    f32 h = surfaceNoise.GetNoise(wx, wz) * 0.5f + 0.5f;
     heights[i] = static_cast<i32>(h * static_cast<f32>(Chunk::height() - 1));
   }
 
@@ -155,13 +160,7 @@ void World::job_generateChunk(Random& rng, Channel<Chunk>& chunkGenerated, ivec2
     f32 wx = center.x + static_cast<f32>(x - 1);
     f32 wz = center.z + static_cast<f32>(z - 1);
 
-    bool caveMask =
-      y > 0 &&
-      rng.caveNoise(
-        caveSeed,
-        config.caveFrequency,
-        vec3(wx, static_cast<f32>(y), wz)
-      ) > config.caveThreshold;
+    bool caveMask = y > 0 && caveNoise.GetNoise(wx, static_cast<f32>(y), wz) > config.caveThreshold;
 
     if (caveMask)
       block = Block::Air;

@@ -73,7 +73,7 @@ void App::update(f32 dt) {
     }, event);
   }
 
-  for (const auto& [coord, meshData] : m_mesher->receiveMeshes()) {
+  for (auto& [coord, meshData] : m_mesher->receiveMeshes()) {
     if (!m_idCache.contains(coord)) continue;
     m_idCache[coord] = meshData.meshID;
     m_addedMeshes.emplace_back(std::move(meshData));
@@ -258,11 +258,11 @@ void App::gui_mainMenu() {
 void App::gui_generateMenu() {
   static World::Config _worldConfig{
     .seed               = (static_cast<i64>(m_rng.i(0)) << 32) | static_cast<i64>(m_rng.i(0)),
-    .surfaceFrequency   = m_rng.f(0.01f),
-    .surfaceLacunarity  = m_rng.f(1.001f, 5.0f),
+    .surfaceFrequency   = m_rng.f(0.001f, 0.1f),
+    .surfaceLacunarity  = m_rng.f(1.0f, 5.0f),
     .surfaceGain        = m_rng.f(0.01f, 0.99f),
     .surfaceOctaves     = m_rng.i(3, 10),
-    .caveFrequency      = m_rng.f(0.01f),
+    .caveFrequency      = m_rng.f(0.001f, 0.1f),
     .caveThreshold      = m_rng.f(0.2f, 0.8f)
   };
 
@@ -319,8 +319,8 @@ void App::gui_generateMenu() {
         .surfaceLacunarity  = m_rng.f(1.0f, 5.0f),
         .surfaceGain        = m_rng.f(0.01f, 0.99f),
         .surfaceOctaves     = m_rng.i(3, 10),
-        .caveFrequency      = m_rng.f(0.01f),
-        .caveThreshold      = m_rng.f()
+        .caveFrequency      = m_rng.f(0.001f, 0.1f),
+        .caveThreshold      = m_rng.f(0.2f, 0.8f)
       };
     }
   ImGui::End();
