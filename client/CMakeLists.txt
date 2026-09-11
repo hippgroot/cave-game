@@ -1,4 +1,7 @@
 add_executable(cave-game
+  ${CMAKE_CURRENT_SOURCE_DIR}/mesher/mesher.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/mesher/mesher.cpp
+
   ${CMAKE_CURRENT_SOURCE_DIR}/app.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/app.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp

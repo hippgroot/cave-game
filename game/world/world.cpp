@@ -18,6 +18,10 @@ ivec2 Chunk::coord() const {
   return m_coord;
 }
 
+const std::vector<Block>& Chunk::blocks() const {
+  return m_blocks;
+}
+
 World::World(Random& rng, Channel<Chunk>& chunkGenerated, JobPool& jobPool, Config config)
 : m_rng(rng),
   m_chunkGenerated(chunkGenerated),
@@ -99,7 +103,7 @@ void World::requestChunks(ivec2 center, i32 viewDistance) {
     ivec2 chunkCoord = center + coord;
     m_chunkCache.emplace(chunkCoord, std::nullopt);
 
-    m_jobPool.submit([&rng, &chunkGenerated, chunkCoord, config](){
+    m_jobPool.submit([&rng, &chunkGenerated, chunkCoord, config]{
       job_generateChunk(rng, chunkGenerated, chunkCoord, config);
     });
   }

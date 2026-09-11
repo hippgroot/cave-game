@@ -23,7 +23,7 @@ i32 main() {
   Channel<Renderer::FrameData>  newFrame;
   Channel<f32>                  beginFrame;
   Channel<Chunk>                chunkGenerated;
-  Channel<MeshData>             meshGenerated;
+  Channel<Mesher::MeshResult>   meshGenerated;
 
   Renderer renderer(Renderer::Info{
     .device     = device,
@@ -59,9 +59,9 @@ i32 main() {
 
     newFrame.send(Renderer::FrameData{
       .guiSnapshot    = gui.snapshot(),
-      .cameraData     = std::move(app.cameraData()),
-      .addedMeshes    = {},
-      .removedMeshes  = {}
+      .cameraData     = app.cameraData(),
+      .addedMeshes    = app.addedMeshes(),
+      .removedMeshes  = app.removedMeshes()
     });
   }
 }

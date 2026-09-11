@@ -40,7 +40,7 @@ private:
   Random&             m_rng;
   JobPool&            m_jobPool;
   World               m_world;
-  Player              m_player;
+  Player              m_player{vec3(0.0f, 256.0f, 0.0f), glm::radians(-45.0f), 0.0f};
   std::vector<Event>  m_events;
 
 public:

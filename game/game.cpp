@@ -16,13 +16,13 @@ void Game::update(const Input& input) {
   m_world.update(center, input.viewDistance);
 
   for (const auto& chunkCoord : m_world.addedChunks()) {
-    auto& chunkopt = m_world[chunkCoord];
+    const auto& chunkopt = m_world[chunkCoord];
     if (chunkopt.has_value())
-      m_events.emplace_back(ChunkLoadEvent{ .chunk = *chunkopt });
+      m_events.emplace_back(ChunkLoadEvent{ *chunkopt });
   }
 
   for (const auto& chunkCoord : m_world.removedChunks())
-    m_events.emplace_back(ChunkUnloadEvent{ .coord = chunkCoord });
+    m_events.emplace_back(ChunkUnloadEvent{ chunkCoord });
 }
 
 const Player& Game::player() const {

@@ -4,7 +4,12 @@
 #include "grf/window.hpp"
 #include "grf/gui.hpp"
 
+#include <variant>
+
 using namespace grf;
+
+template <typename... Tps>
+struct overloaded : Tps... { using Tps::operator()...; };
 
 namespace {
 
@@ -44,11 +49,35 @@ void App::update(f32 dt) {
   drawGUI();
 
   if (!m_game) return;
-
   m_game->update(std::move(input));
 
   auto& player = m_game->player();
   m_camera->follow(player.position(), player.pitch(), player.yaw());
+
+  for (auto& event : m_game->events()) {
+    std::visit(overloaded{
+      [&](Game::ChunkLoadEvent& e){
+        if (m_idCache.contains(e.chunk.coord())) return;
+        m_mesher->newMesh(std::move(e.chunk));
+        m_idCache[e.chunk.coord()] = 0;
+      },
+      [&](Game::ChunkUnloadEvent& e){
+        if (!m_idCache.contains(e.coord)) return;
+
+        Renderer::MeshID meshID = m_idCache[e.coord];
+        if (meshID == 0) return;
+
+        m_removedMeshes.emplace_back(meshID);
+        m_idCache.erase(e.coord);
+      }
+    }, event);
+  }
+
+  for (const auto& [coord, meshData] : m_mesher->receiveMeshes()) {
+    if (!m_idCache.contains(coord)) continue;
+    m_idCache[coord] = meshData.meshID;
+    m_addedMeshes.emplace_back(std::move(meshData));
+  }
 }
 
 bool App::exitRequested() const {
@@ -57,6 +86,14 @@ bool App::exitRequested() const {
 
 std::optional<Camera::UpdateData> App::cameraData() const {
   return m_camera ? m_camera->update() : std::nullopt;
+}
+
+std::vector<MeshData> App::addedMeshes() {
+  return std::exchange(m_addedMeshes, {});
+}
+
+std::vector<Renderer::MeshID> App::removedMeshes() {
+  return std::exchange(m_removedMeshes, {});
 }
 
 void App::setupGUIStyle() const {
@@ -167,17 +204,17 @@ Game::Input App::processInput(f32 dt) {
   }
 
   if (m_state == UIState::Closed && !m_gui.ownsInput()) {
-    vec3 dir = glm::normalize(vec3(
+    vec3 dir = vec3(
       static_cast<float>(m_window.isPressed(Key::D) - m_window.isPressed(Key::A)),
       static_cast<float>(m_window.isPressed(Key::Space) - m_window.isPressed(Key::LeftShift)),
       static_cast<float>(m_window.isPressed(Key::S) - m_window.isPressed(Key::W))
-    ));
-    input.dir = glm::dot(dir, dir) < 1e-4f ? vec3(0.0f) : dir * dt;
+    );
+    input.dir = glm::dot(dir, dir) < 1e-4f ? vec3(0.0f) : glm::normalize(dir) * dt;
 
     if (m_window.isPressed(MouseButton::Left)) {
       vec2 cursorDelta = m_window.cursorDelta();
-      input.pitch = cursorDelta.x * m_settings.sensitivity;
-      input.yaw = cursorDelta.y * m_settings.sensitivity;
+      input.pitch = -cursorDelta.y * m_settings.sensitivity;
+      input.yaw = -cursorDelta.x * m_settings.sensitivity;
     }
   }
 
@@ -263,9 +300,12 @@ void App::gui_generateMenu() {
 
     if (ImGui::Button("Play")) {
       m_game    = std::make_unique<Game>(m_rng, m_jobPool, m_chunkGenerated, _worldConfig);
+      m_mesher  = std::make_unique<Mesher>(m_meshGenerated, m_jobPool);
       m_camera  = std::make_unique<Camera>();
 
       auto& player = m_game->player();
+      m_camera->setFOV(m_settings.fov_deg);
+      m_camera->setViewport(m_window.width(), m_window.height());
       m_camera->follow(player.position(), player.pitch(), player.yaw());
 
       m_state = UIState::Closed;
@@ -336,6 +376,7 @@ void App::gui_pauseMenu() {
     if (ImGui::Button("Exit to Main Menu")) {
       m_state = UIState::MainMenu;
       m_camera.reset();
+      m_mesher.reset();
       m_game.reset();
     }
     if (ImGui::Button("Exit to Desktop"))

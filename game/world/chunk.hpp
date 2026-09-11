@@ -22,4 +22,5 @@ public:
   static i32 height();
 
   ivec2 coord() const;
+  const std::vector<Block>& blocks() const;
 };

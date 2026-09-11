@@ -16,7 +16,7 @@ void Player::translate(vec3 worldUp, vec3 worldRight, vec3 dir) {
 
 void Player::rotate(f32 pitch, f32 yaw) {
   m_pitch = glm::clamp(m_pitch + pitch, -m_pitchLimit, m_pitchLimit);
-  m_yaw += glm::radians(yaw);
+  m_yaw += yaw;
 }
 
 vec3 Player::position() const {
