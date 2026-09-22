@@ -12,7 +12,11 @@ using namespace grf;
 i32 main() {
   logging::register_thread(logging::Thread::game);
 
-  Window window;
+  Window window(Window::Info{
+    .width = 1280,
+    .height = 720,
+    .title = "Cave Game"
+  });
   Device device;
   Swapchain swapchain(device, window);
   GUI gui(device, swapchain);
