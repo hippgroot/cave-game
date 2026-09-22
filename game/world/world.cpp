@@ -114,7 +114,11 @@ void World::job_generateChunk(Channel<Chunk>& chunkGenerated, ivec2 coord, Confi
   static const i32 _genSize = Chunk::size() + 2;
   static const i32 _planeSize = _genSize * _genSize;
 
+  i32 surfaceSeed = static_cast<i32>((config.seed >> 32) & 0xFFFFFFFF);
+  i32 caveSeed = static_cast<i32>(config.seed & 0xFFFFFFFF);
+
   FastNoiseLite surfaceNoise;
+  surfaceNoise.SetSeed(surfaceSeed);
   surfaceNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
   surfaceNoise.SetFrequency(config.surfaceFrequency);
   surfaceNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
@@ -123,14 +127,12 @@ void World::job_generateChunk(Channel<Chunk>& chunkGenerated, ivec2 coord, Confi
   surfaceNoise.SetFractalOctaves(config.surfaceOctaves);
 
   FastNoiseLite caveNoise;
+  caveNoise.SetSeed(caveSeed);
   caveNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
   caveNoise.SetFrequency(config.caveFrequency);
 
   vec2 planePos = (vec2(coord) + vec2(0.5f)) * static_cast<f32>(Chunk::size());
   vec3 center = vec3(planePos.x, 0.0f, planePos.y);
-
-  i32 surfaceSeed = static_cast<i32>((config.seed >> 32) & 0xFFFFFFFF);
-  i32 caveSeed = static_cast<i32>(config.seed & 0xFFFFFFFF);
 
   std::vector<i32> heights(_planeSize);
   for (i32 i = 0; i < static_cast<i32>(heights.size()); ++i) {
