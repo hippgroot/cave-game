@@ -11,8 +11,10 @@ set(CMAKE_CXX_STANDARD 26)
 set(GRF_BUILD_EXAMPLES OFF)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/grf)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/engine/core)
-add_subdirectory(${CMAKE_SOURCE_DIR}/engine/render)
-add_subdirectory(${CMAKE_SOURCE_DIR}/game)
+add_library(FastNoiseLite INTERFACE)
+target_include_directories(FastNoiseLite SYSTEM INTERFACE
+${PROJECT_SOURCE_DIR}/external/FastNoiseLite/Cpp
+)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/client)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/core)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/client)

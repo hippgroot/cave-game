@@ -1,0 +1,48 @@
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: Latest
+ColumnLimit: 0
+IndentWidth: 2
+ContinuationIndentWidth: 2
+BracedInitializerIndentWidth: 2
+AccessModifierOffset: -2
+IndentCaseLabels: false
+NamespaceIndentation: None
+FixNamespaceComments: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 0
+PackConstructorInitializers: Never
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortRecordOnASingleLine: Always
+AlignConsecutiveShortCaseStatements:
+  Enabled: true
+AlignConsecutiveDeclarations:
+  Enabled: true
+AlignConsecutiveAssignments:
+  Enabled: true
+AlignTrailingComments: false
+AlignAfterOpenBracket: false
+Cpp11BracedListStyle: FunctionCall
+BreakAfterOpenBracketBracedList: true
+BreakBeforeCloseBracketBracedList: true
+LambdaBodyIndentation: Signature
+SortIncludes:
+  Enabled: true
+  IgnoreCase: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<[a-z_]+>$'
+    Priority: 3
+  - Regex: '^<'
+    Priority: 2
+InsertNewlineAtEOF: false
+KeepEmptyLines:
+  AtStartOfBlock: false
