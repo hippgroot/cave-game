@@ -2,6 +2,8 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/session.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/session.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/servers.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/servers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/worlds.hpp
@@ -34,6 +36,8 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/status_screen.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/status_screen.cpp
 )
 
 target_link_libraries(cave-game PRIVATE

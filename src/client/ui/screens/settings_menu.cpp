@@ -129,7 +129,11 @@ void SettingsMenu::drawPage(const ui::Context& ctx, const ui::Rect& area) {
 }
 
 void SettingsMenu::drawGeneral(const ui::Context& ctx, const ui::Rect& area) {
-  drawEmpty(ctx, area);
+  Settings::General& general = m_info.settings.general;
+  const auto         rects   = rows(ctx, area, 2);
+
+  ui::label(ctx, rects[0], "Player Name", ui::Anchor::Left);
+  ui::textField(ctx, rects[1], "player_name", general.playerName, "Player", Settings::General::maxPlayerNameLength);
 }
 
 void SettingsMenu::drawControls(const ui::Context& ctx, const ui::Rect& area) {

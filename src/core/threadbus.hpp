@@ -9,6 +9,7 @@
 #include <mutex>
 #include <optional>
 #include <stop_token>
+#include <type_traits>
 #include <unordered_map>
 
 #define THREAD_BUS ThreadBus::instance()
@@ -109,7 +110,7 @@ public:
   }
 
   template <typename T>
-  void send(ChannelID id, T data) {
+  void send(ChannelID id, std::type_identity_t<T> data) {
     auto channel = find<T>(id);
     if (channel == nullptr) return;
     channel->send(std::move(data));

@@ -15,6 +15,12 @@ set(YAML_CPP_BUILD_TOOLS OFF)
 set(YAML_CPP_BUILD_CONTRIB OFF)
 add_subdirectory(${CMAKE_SOURCE_DIR}/external/yaml-cpp)
 
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/enet EXCLUDE_FROM_ALL)
+target_include_directories(enet SYSTEM INTERFACE ${CMAKE_SOURCE_DIR}/external/enet/include)
+if(WIN32)
+  target_link_libraries(enet INTERFACE ws2_32 winmm)
+endif()
+
 add_library(FastNoiseLite INTERFACE)
 target_include_directories(FastNoiseLite SYSTEM INTERFACE
 ${PROJECT_SOURCE_DIR}/external/FastNoiseLite/Cpp
@@ -22,5 +28,6 @@ ${PROJECT_SOURCE_DIR}/external/FastNoiseLite/Cpp
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/core)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/engine)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/net)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/game)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/client)

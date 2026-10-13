@@ -1,11 +1,10 @@
 #include "client/servers.hpp"
 
 #include "core/files.hpp"
+#include "core/log.hpp"
 #include "core/paths.hpp"
 
 #include <yaml-cpp/yaml.h>
-
-#include <print>
 
 std::filesystem::path ServerList::path() {
   return paths::config() / "servers.yaml";
@@ -20,7 +19,7 @@ ServerList ServerList::load() {
   } catch (const YAML::BadFile&) {
     return list;
   } catch (const YAML::Exception& e) {
-    std::println(stderr, "Failed to parse {}: {}", path().string(), e.what());
+    logging::client.warn("Failed to parse {}: {}", path().string(), e.what());
     return list;
   }
 
@@ -35,7 +34,7 @@ ServerList ServerList::load() {
       entry.name = node["name"] ? node["name"].as<str>() : entry.address;
       list.servers.push_back(std::move(entry));
     } catch (const YAML::Exception&) {
-      std::println(stderr, "Skipping invalid server entry in {}", path().string());
+      logging::client.warn("Skipping invalid server entry in {}", path().string());
     }
   }
 

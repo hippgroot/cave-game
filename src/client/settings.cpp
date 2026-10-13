@@ -1,12 +1,12 @@
 #include "client/settings.hpp"
 
 #include "core/files.hpp"
+#include "core/log.hpp"
 #include "core/paths.hpp"
 
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
-#include <print>
 
 namespace {
 
@@ -20,7 +20,7 @@ void read(const YAML::Node& section, const char* key, T& value) {
   try {
     value = node.as<T>();
   } catch (const YAML::Exception&) {
-    std::println(stderr, "Invalid value for setting '{}', using default", key);
+    logging::client.warn("Invalid value for setting '{}', using default", key);
   }
 }
 
@@ -54,12 +54,16 @@ Settings Settings::load() {
   } catch (const YAML::BadFile&) {
     return settings;
   } catch (const YAML::Exception& e) {
-    std::println(stderr, "Failed to parse {}: {}", path().string(), e.what());
+    logging::client.warn("Failed to parse {}: {}", path().string(), e.what());
     return settings;
   }
 
   const YAML::Node& document = root;
   if (!document.IsMap()) return settings;
+
+  if (const YAML::Node general = document["general"]) {
+    read(general, "player_name", settings.general.playerName);
+  }
 
   if (const YAML::Node controls = document["controls"]) {
     read(controls, "sensitivity", settings.controls.sensitivity);
@@ -72,6 +76,9 @@ Settings Settings::load() {
     read(video, "fov", settings.video.fov);
   }
 
+  if (settings.general.playerName.size() > General::maxPlayerNameLength)
+    settings.general.playerName.resize(General::maxPlayerNameLength);
+
   settings.controls.sensitivity = std::clamp(settings.controls.sensitivity, Controls::minSensitivity, Controls::maxSensitivity);
   settings.video.fov            = std::clamp(settings.video.fov, Video::minFOV, Video::maxFOV);
 
@@ -81,6 +88,10 @@ Settings Settings::load() {
 void Settings::save() const {
   YAML::Emitter out;
   out << YAML::BeginMap;
+
+  out << YAML::Key << "general" << YAML::Value << YAML::BeginMap;
+  out << YAML::Key << "player_name" << YAML::Value << general.playerName;
+  out << YAML::EndMap;
 
   out << YAML::Key << "controls" << YAML::Value << YAML::BeginMap;
   out << YAML::Key << "sensitivity" << YAML::Value << controls.sensitivity;

@@ -8,3 +8,6 @@
 	path = external/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
 	shallow = true
+[submodule "external/enet"]
+	path = external/enet
+	url = https://github.com/lsalzman/enet.git

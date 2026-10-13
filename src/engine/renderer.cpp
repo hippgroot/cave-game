@@ -1,5 +1,6 @@
 #include "engine/renderer.hpp"
 
+#include "core/log.hpp"
 #include "core/threadbus.hpp"
 
 #include <grf/device.hpp>
@@ -82,8 +83,10 @@ void Renderer::createPipelines() {
 }
 
 void Renderer::loop(std::stop_token st) {
+  logging::ThreadScope thread("render");
+
   f32 prevDt = 0.0f;
-  THREAD_BUS.send(m_beginFrameChannel, prevDt);
+  THREAD_BUS.send<f32>(m_beginFrameChannel, prevDt);
 
   while (auto frameopt = THREAD_BUS.wait_to_receive<FrameData>(m_renderFrameChannel, st)) {
     FrameData frameData = std::move(*frameopt);
@@ -94,7 +97,7 @@ void Renderer::loop(std::stop_token st) {
 
     m_device.wait({frameSync});
     f32 dt = m_device.beginFrame();
-    THREAD_BUS.send(m_beginFrameChannel, dt);
+    THREAD_BUS.send<f32>(m_beginFrameChannel, dt);
     m_graveyard.update();
 
     auto [swapchainImage, imgSync] = m_swapchain.acquireNextImage();

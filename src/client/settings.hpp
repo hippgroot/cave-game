@@ -8,6 +8,10 @@
 
 struct Settings {
   struct General {
+    static constexpr size maxPlayerNameLength = 16;
+
+    str playerName = "Player";
+
     bool operator==(const General&) const = default;
   };
 

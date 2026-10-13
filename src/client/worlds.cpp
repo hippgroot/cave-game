@@ -1,6 +1,7 @@
 #include "client/worlds.hpp"
 
 #include "core/files.hpp"
+#include "core/log.hpp"
 #include "core/paths.hpp"
 
 #include <yaml-cpp/yaml.h>
@@ -12,7 +13,6 @@
 #include <chrono>
 #include <format>
 #include <functional>
-#include <print>
 #include <random>
 
 namespace {
@@ -39,7 +39,7 @@ std::optional<WorldSave> load(const std::filesystem::path& directory) {
     if (root["seed"]) world.seed = root["seed"].as<u64>();
     if (root["last_played"]) world.lastPlayed = root["last_played"].as<i64>();
   } catch (const YAML::Exception&) {
-    std::println(stderr, "Invalid world metadata in {}", directory.string());
+    logging::client.warn("Invalid world metadata in {}", directory.string());
   }
   return world;
 }
@@ -90,7 +90,7 @@ std::optional<WorldSave> WorldSave::create(std::string_view name, u64 seed) {
 
   std::filesystem::create_directories(directory, error);
   if (error) {
-    std::println(stderr, "Failed to create world directory {}: {}", directory.string(), error.message());
+    logging::client.warn("Failed to create world directory {}: {}", directory.string(), error.message());
     return std::nullopt;
   }
 
