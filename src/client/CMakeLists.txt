@@ -29,16 +29,15 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/multiplayer_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/multiplayer_menu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/pause_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/pause_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.cpp
 )
 
-target_include_directories(cave-game PRIVATE
-  ${PROJECT_SOURCE_DIR}/src
-)
-
 target_link_libraries(cave-game PRIVATE
   CaveGame::engine
+  CaveGame::game
   yaml-cpp::yaml-cpp
 )

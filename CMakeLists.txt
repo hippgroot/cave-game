@@ -22,4 +22,5 @@ ${PROJECT_SOURCE_DIR}/external/FastNoiseLite/Cpp
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/core)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/engine)
+add_subdirectory(${PROJECT_SOURCE_DIR}/src/game)
 add_subdirectory(${PROJECT_SOURCE_DIR}/src/client)
