@@ -1,8 +1,9 @@
 #pragma once
 
+#include "core/types.hpp"
+
 #include <chrono>
 #include <condition_variable>
-#include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -12,7 +13,7 @@
 
 #define THREAD_BUS ThreadBus::instance()
 
-using ChannelID = std::uint64_t;
+using ChannelID = u64;
 
 class BaseChannel {
 public:
