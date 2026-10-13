@@ -1,55 +1,173 @@
 # Architecture
 
-## Singletons
+- [docs home](index.md)
+- [readme](../README.md)
 
-The foundation of the app is a set of singletons that control how and when data gets moved
+> The `refactor` branch is a rebuild of the game on a new foundation. Menus, settings, world and server lists, the integrated server, and LAN/remote networking work. World generation, meshing, and in-game rendering have not been ported yet, so the renderer currently only draws the GUI. See [planned](#planned) for what comes next.
 
-### Thread Bus
+## Modules
 
-The `ThreadBus` object is a singleton that holds `Channel`s which are used for thread-to-thread communication.
+Every module lives in `src/<module>/` and is its own static library. The include root is `src/`, so headers are always included by module path (`#include "net/link.hpp"`).
 
-`Channel`s are thread-safe queues of a single data type and can be registered and unregistered from the `ThreadBus` whenever needed.
+```mermaid
+flowchart TB
+  client["<b>cave-game</b> (client)<br/>main.cpp · Session · Settings · ui/"]
+  engine["<b>engine</b><br/>Renderer · Camera · Assets · Graveyard"]
+  game["<b>game</b><br/>Game"]
+  net["<b>net</b><br/>protocol · codec · Link · Server · Client"]
+  core["<b>core</b><br/>ThreadBus · logging · paths · files"]
+  grf["<b>GRF</b>"]
+  enet["<b>ENet</b>"]
 
-### Job Pool
+  client --> engine
+  client --> game
+  game --> net
+  engine --> core
+  net --> core
+  net -. private .-> enet
+  engine --> grf
+  core -. "types only" .-> grf
+```
 
-The `JobPool` object is a singleton that manages the dispatch of `Task`s across a pool of worker threads.
+| __folder__    | __target__                    | __contents__                                                                 |
+| ---           | ---                           | ---                                                                          |
+| `src/core`    | `core` (`CaveGame::core`)     | `ThreadBus` and `Channel`, logging, `paths`, `files::writeAtomic`, type aliases, `overloaded` |
+| `src/engine`  | `engine` (`CaveGame::engine`) | `Renderer`, `Camera`, `Assets` and `Registry`, `Graveyard`, `MeshData`       |
+| `src/net`     | `net` (`CaveGame::net`)       | wire protocol, binary codec, `Link`, `Address`, ENet `Server` and `Client`   |
+| `src/game`    | `game` (`CaveGame::game`)     | `Game`, the authoritative fixed-tick simulation                              |
+| `src/client`  | `cave-game` (executable)      | `main.cpp`, `Session`, `Settings`, `WorldSave`, `ServerList`, and the [UI](ui.md) |
 
-A `Task` has a status, priority, a function that it runs, and a result. When constructed, it immediately adds itself to the `JobPool`. It can have its priority updated, be cancelled, status checked, and its data retrieved.
+`game` must never depend on `engine` or `client`. It only knows about `core` and `net`, which keeps the door open for a headless dedicated server that links `game` without a window or GPU.
 
-## Threading
+## Core
 
-1. Client thread (main thread)
-2. Render thread -- always renders one frame behind the main thread
-3. Game thread -- a ticked thread (20 ticks per second)
+### Thread bus
 
-The JobPool allocates the rest of the available hardware concurrency. It will always have a minimum of a single worker thread just in case the game is run on a computer with 3 or less logical cores.
+`ThreadBus` is a singleton (reached through the `THREAD_BUS` macro) that owns every cross-thread `Channel`. A channel is registered with a payload type and referred to by its `ChannelID` from then on:
 
-## Client
+```cpp
+ChannelID id = THREAD_BUS.registerChannel<f32>();
+THREAD_BUS.send<f32>(id, dt);
+std::optional<f32> next = THREAD_BUS.receive<f32>(id);
+std::optional<f32> waited = THREAD_BUS.wait_to_receive<f32>(id, stopToken, 8ms);
+THREAD_BUS.unregisterChannel(id);
+```
 
-There are a few jobs of the client:
+`Channel<T>` is an unbounded mutex-guarded queue with a condition variable. `receive` polls and returns `std::nullopt` when empty. `wait_to_receive` parks until a message arrives, the stop token fires, or the optional timeout expires.
 
-1. Mediate between the game and the renderer. The client simulates frame N while the renderer renders frame N-1
-2. Draw the GUI and handle window input events
-3. Handle the connection method between the game and the client (Singleplayer or Multiplayer)
+Channels are held by `shared_ptr`, so a thread that is in the middle of a send or receive keeps the channel alive even if another thread unregisters it. Sending to an unregistered ID is a no-op and receiving returns `std::nullopt`, so a dropped peer never crashes the other side.
 
-### Screen Stack
+The payload type is part of the lookup. `send` takes `std::type_identity_t<T>`, which forces the type to be written explicitly: a message sent with the wrong `T` would fail the channel's `dynamic_pointer_cast` and be dropped without an error.
 
-The `ScreenStack` draws `Screen`s in stack order (bottom to top).
+### Logging
 
-A `Screen` is a state of GUI. It has a draw function which calls all of the necessary ImGui methods. It also manages its own state of input.
+`logging::Category` objects (`core`, `net`, `game`, `client`, `render`) each carry their own level and expose `trace` through `error` with `std::format` syntax. Every thread wraps its body in a `logging::ThreadScope`, which names the thread in log output and logs its uptime on exit. Levels are configured at startup from the `CAVE_LOG` environment variable; see [running](building/index.md#logging).
 
-### Connection
+### Paths and files
 
-The client either has a local connection or a tcp connection. Local connections use the `ThreadBus` to communicate with the game thread. TCP connections serialize data to and from an established peer.
+`paths::config()` and `paths::saves()` resolve the per-user config directory for each OS. `files::writeAtomic` writes to `<file>.tmp` and renames it over the target, so a crash mid-save never leaves a half written file. Every YAML file the client saves goes through it.
 
-### Settings
+## Threads
 
-The settings that persist across all worlds. Saved to a json file when modifying and read from a json file at the start of the game.
+| __thread__   | __owner__     | __lifetime__                 | __job__                                                      |
+| ---          | ---           | ---                          | ---                                                          |
+| `main`       | `main()`      | whole program                | window events, ImGui, the screen stack, `Session::update`, building `FrameData` |
+| `render`     | `Renderer`    | whole program                | renders frame N-1 while `main` builds frame N                |
+| `game`       | `Game`        | while hosting a world        | fixed 20 tick-per-second simulation                          |
+| `net-server` | `net::Server` | while a world is open to LAN | ENet host relaying remote players into `Game`                |
+| `net-client` | `net::Client` | while joined to a server     | ENet peer relaying the session to a remote server            |
+
+The names in the first column are the names that appear in log lines.
+
+## A frame
+
+The main thread and the render thread are pipelined one frame apart through two channels created in `main()`:
+
+| __channel__          | __from__ | __to__ | __payload__                                                      |
+| ---                  | ---      | ---    | ---                                                              |
+| `beginFrameChannel`  | render   | main   | `f32` dt of the frame the renderer just started                  |
+| `renderFrameChannel` | main     | render | `Renderer::FrameData`: GUI snapshot, camera, added and removed meshes |
+
+```mermaid
+sequenceDiagram
+  participant R as Render thread
+  participant M as Main thread
+
+  Note over R,M: on startup the renderer sends dt = 0 so the first frame can begin
+  par render frame N-1
+    R->>R: wait on frame sync, beginFrame
+    R->>M: beginFrame (dt)
+    R->>R: acquire swapchain image, resize depth
+    R->>R: upload camera, unload and cache meshes
+    R->>R: draw meshes, draw GUI snapshot
+    R->>R: submit and present
+  and build frame N
+    M->>M: pollEvents, wait for dt (8ms timeout)
+    M->>M: Session::update
+    M->>M: GUI::newFrame, ScreenStack::draw
+    M->>R: renderFrame (FrameData N)
+  end
+```
+
+The main thread waits for `dt` with an 8 ms timeout and loops back to `pollEvents` if it doesn't arrive, so the window stays responsive while the renderer is blocked (for example while the window is minimized).
+
+`FrameData` is a self-contained snapshot. The GUI draw lists are deep-copied by `GUI::snapshot()`, and camera matrices and mesh data are moved in by value, so the render thread never reads main-thread state. The renderer draws the GUI with `GUI::render(cmd, snapshot)`; the overload without a snapshot would call `ImGui::Render()` on the render thread while the main thread is inside the next `NewFrame`, which is a data race on the ImGui context.
+
+## Sessions and connections
+
+A `Session` is the client side of one game. It owns a `net::ClientLink` and is the only thing the rest of the client talks to. Whether the game is local or remote is decided entirely by what is on the other end of the link.
+
+`net::Link<Out, In>` is a pair of `ThreadBus` channels plus a shared `open` flag. `net::makeLinkPair()` returns a `ClientLink` (sends `ClientMessage`, receives `ServerMessage`) and the matching `ServerLink`. Either end can `close()` the link, and the channels are unregistered when the last end is destroyed. Both sides drain any queued messages before treating a closed link as a disconnect.
+
+```mermaid
+flowchart LR
+  subgraph SP["Singleplayer / host"]
+    S1["Session"] -- "ClientLink ⇄ ServerLink" --> G1["Game"]
+  end
+
+  subgraph LAN["Opened to LAN"]
+    RC["remote client"] -- "ENet" --> NS["net::Server"]
+    NS -- "ClientLink ⇄ ServerLink<br/>(one pair per peer)" --> G1
+  end
+
+  subgraph MP["Joined a server"]
+    S2["Session"] -- "ClientLink ⇄ ServerLink" --> NC["net::Client"]
+    NC -- "ENet" --> RS["remote server"]
+  end
+```
+
+- `Session::singleplayer` creates a `Game`, hands it the `ServerLink` through `Game::connect`, and sends `Hello`.
+- `Session::join` creates a `net::Client` that holds the `ServerLink` and relays it to the remote server over ENet, then sends `Hello`. The session code is identical in both cases.
+- `Session::openToLan` starts a `net::Server` on the game's join channel. Every ENet connection gets its own link pair, and the `ServerLink` is pushed into `Game`'s join channel exactly like a local player's, so `Game` can't tell local and remote players apart.
+
+`Session::update` drains the link once per frame and returns `Joined` when the `Welcome` arrives and `Ended` on `Disconnected` or a closed link. `main()` clears the menus on `Joined`, and on `Ended` destroys the session and shows the disconnect reason over the main menu.
+
+The wire protocol and the handshake are described in [networking](networking.md).
 
 ## Game
 
-The `Game` object's sole job is to simulate the game state on a fixed timer state (20 ticks a second default). It receives an Input state from the client and gives back a list of events for the client to process.
+`Game` runs its own thread at `Game::tickRate` (20) ticks per second. If it falls more than 10 ticks behind it logs `Can't keep up!` and skips ahead rather than trying to catch up. Each tick runs, in order:
+
+1. `acceptPeers` takes new `ServerLink`s from the join channel.
+2. `receive` handles every queued message from every peer and marks peers whose link closed.
+3. `expirePeers` kicks peers that haven't sent `Hello` within `handshakeTimeout` (5 seconds).
+4. `removePeers` drops leaving peers and broadcasts `PlayerLeft`.
+5. `simulate` advances the world (empty for now).
+6. `sync` sends every joined player a `TickSync`.
+
+Destroying `Game` stops the thread and sends `Disconnected{"Server closed"}` to every remaining peer.
 
 ## Renderer
 
-The renderer receives a list of added and removed meshes from the client via the `ThreadBus` to add to the render list. it signals through the `ThreadBus` when the client can start processing frame N while it renders frame N-1.
+`Renderer` owns the render thread and every GPU resource the game creates. It keeps two frames in flight, with a ring of command buffers, syncs, and per-frame globals buffers.
+
+- `Assets` loads block textures listed in `assets/blocks.yaml` into a bindless texture lookup buffer, and compiles every `.vert` and `.frag` under `assets/shaders/` at startup.
+- Meshes arrive as renderer-agnostic `MeshData` (vertex bytes, indices, optional aux buffer, push constants, AABB, pipeline name, `MeshID`, layer) and are cached by `MeshID`. Each frame the cache is frustum culled and sorted into a render buffer.
+- `Graveyard` holds retired buffers and images until no in-flight frame can still reference them.
+
+## Planned
+
+- **Job system.** A global `JobPool` sized to the remaining hardware concurrency (at least one worker), where `submit` returns a `Task<T>` handle with a status, priority, cancellation, and result. Chunk generation and meshing will run here.
+- **World.** The staged chunk generation pipeline, a client-side world replica, and chunk meshes flowing through `FrameData` to the renderer.
+- **Game input and events.** `PlayerInput` is defined and the server already stores the latest one per peer, but the client doesn't send it yet. The client will send input each frame, `simulate` will consume it, and the game will send world state back.
+- **Renderer passes.** Per-frame scene parameters and a list of passes (sky and atmosphere first).
