@@ -2,6 +2,10 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/servers.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/servers.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/worlds.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/worlds.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.cpp
@@ -16,10 +20,18 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/widgets.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/widgets.cpp
 
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/form_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/form_menu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/list_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/list_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/main_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/main_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/multiplayer_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/multiplayer_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/singleplayer_menu.cpp
 )
 
 target_include_directories(cave-game PRIVATE

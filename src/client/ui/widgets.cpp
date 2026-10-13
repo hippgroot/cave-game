@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 
 namespace ui {
 
@@ -38,9 +40,10 @@ std::string_view visibleText(std::string_view text) {
 }
 
 struct Interaction {
-  bool pressed = false;
-  bool hovered = false;
-  bool held    = false;
+  bool pressed   = false;
+  bool hovered   = false;
+  bool held      = false;
+  bool activated = false;
 };
 
 Interaction interact(const Context& ctx, const Rect& rect) {
@@ -48,9 +51,10 @@ Interaction interact(const Context& ctx, const Rect& rect) {
   if (!ctx.interactive || rect.width() < 1.0f || rect.height() < 1.0f) return result;
 
   ImGui::SetCursorScreenPos(toImVec2(rect.min));
-  result.pressed = ImGui::InvisibleButton("##button", toImVec2(rect.size()), ImGuiButtonFlags_EnableNav);
-  result.hovered = ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible);
-  result.held    = ImGui::IsItemActive();
+  result.pressed   = ImGui::InvisibleButton("##button", toImVec2(rect.size()), ImGuiButtonFlags_EnableNav);
+  result.hovered   = ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible);
+  result.held      = ImGui::IsItemActive();
+  result.activated = ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
   return result;
 }
 
@@ -62,6 +66,14 @@ Fade::Fade(f32 alpha) {
 
 Fade::~Fade() {
   ImGui::PopStyleVar();
+}
+
+IDScope::IDScope(size id) {
+  ImGui::PushID(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(id)));
+}
+
+IDScope::~IDScope() {
+  ImGui::PopID();
 }
 
 vec2 measureText(ImFont* font, f32 fontSize, std::string_view text) {
@@ -104,6 +116,17 @@ void label(const Context& ctx, const Rect& rect, std::string_view text, Anchor a
   label(ctx, rect, text, ctx.theme.bodyFont, ctx.px(ctx.theme.bodySize), align);
 }
 
+void focusNext() {
+  ImGui::SetKeyboardFocusHere();
+}
+
+f32 scrollDelta(const Context& ctx, const Rect& rect) {
+  if (!ctx.interactive) return 0.0f;
+
+  const ImVec2 mouse = ImGui::GetIO().MousePos;
+  return rect.contains({mouse.x, mouse.y}) ? ImGui::GetIO().MouseWheel : 0.0f;
+}
+
 bool button(const Context& ctx, const Rect& rect, std::string_view text) {
   const Theme& theme = ctx.theme;
 
@@ -132,6 +155,16 @@ bool button(const Context& ctx, const Rect& rect, std::string_view text) {
 
   label(ctx, visual, visibleText(text));
   return input.pressed;
+}
+
+bool button(const Context& ctx, const Rect& rect, std::string_view text, bool enabled) {
+  if (enabled) return button(ctx, rect, text);
+
+  Context locked     = ctx;
+  locked.interactive = false;
+  Fade fade(ctx.theme.disabledAlpha);
+  button(locked, rect, text);
+  return false;
 }
 
 bool tab(const Context& ctx, const Rect& rect, std::string_view text, bool selected) {
@@ -164,6 +197,108 @@ bool tab(const Context& ctx, const Rect& rect, std::string_view text, bool selec
 
   label(ctx, visual, visibleText(text));
   return input.pressed && !selected;
+}
+
+ItemEvent listItem(const Context& ctx, const Rect& rect, std::string_view title, std::string_view detail, bool selected) {
+  const Theme& theme = ctx.theme;
+
+  ImGui::PushID(title.data(), title.data() + title.size());
+  const ImGuiID     hoverID  = ImGui::GetID("##hover");
+  const ImGuiID     selectID = ImGui::GetID("##select");
+  const Interaction input    = interact(ctx, rect);
+  ImGui::PopID();
+
+  const f32 hover  = smoothed(hoverID, input.hovered ? 1.0f : 0.0f, theme.hoverRate, ctx.dt);
+  const f32 active = smoothed(selectID, selected ? 1.0f : 0.0f, theme.hoverRate, ctx.dt);
+
+  const Rect visual = rect.translated({ctx.px(theme.hoverShift) * 0.5f * hover, 0.0f});
+  const vec4 fill   = glm::mix(glm::mix(theme.fill, theme.fillHovered, hover), theme.fillPressed, active);
+  const f32  width  = ctx.px(glm::mix(theme.outlineWidth, theme.outlineWidthHovered, std::max(hover, active)));
+  box(ctx, visual, fill, theme.outline, width);
+
+  const f32 accent = std::round(ctx.px(6.0f) * active);
+  if (accent >= 1.0f) {
+    const Rect bounds = snapped(visual);
+    ImGui::GetWindowDrawList()->AddRectFilled(
+      toImVec2(bounds.min),
+      ImVec2(bounds.min.x + width + accent, bounds.max.y),
+      toColor(theme.outline));
+  }
+
+  const f32  pad     = ctx.px(18.0f) + accent;
+  const Rect content = Rect{.min = {visual.min.x + pad, visual.min.y}, .max = {visual.max.x - ctx.px(18.0f), visual.max.y}};
+  label(ctx, content, title, Anchor::Left);
+  if (!detail.empty()) {
+    Fade fade(theme.mutedAlpha);
+    label(ctx, content, detail, Anchor::Right);
+  }
+
+  return ItemEvent{.pressed = input.pressed, .activated = input.activated};
+}
+
+bool textField(const Context& ctx, const Rect& rect, std::string_view id, str& value,
+  std::string_view placeholder, size maxLength) {
+  const Theme& theme    = ctx.theme;
+  const f32    fontSize = ctx.px(theme.bodySize);
+  const f32    pad      = ctx.px(16.0f);
+
+  ImGui::PushID(id.data(), id.data() + id.size());
+  const ImGuiID hoverID  = ImGui::GetID("##hover");
+  const ImGuiID activeID = ImGui::GetID("##active");
+
+  bool submitted = false;
+  bool hovered   = false;
+  bool editing   = false;
+
+  ImDrawList* drawList = ImGui::GetWindowDrawList();
+  drawList->ChannelsSplit(2);
+  drawList->ChannelsSetCurrent(1);
+
+  if (ctx.interactive) {
+    const str  hint = str(placeholder);
+    const vec4 muted{theme.text.r, theme.text.g, theme.text.b, theme.text.a * theme.mutedAlpha};
+
+    ImGui::SetCursorScreenPos(toImVec2(rect.min));
+    ImGui::SetNextItemWidth(rect.width());
+    ImGui::PushFont(theme.bodyFont, fontSize);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(pad, std::max(0.0f, (rect.height() - fontSize) * 0.5f)));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_NavCursor, IM_COL32(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Text, toColor(theme.text));
+    ImGui::PushStyleColor(ImGuiCol_TextDisabled, toColor(muted));
+    ImGui::PushStyleColor(ImGuiCol_InputTextCursor, toColor(theme.outline));
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, toColor(theme.fillPressed));
+
+    value.resize(maxLength);
+    submitted = ImGui::InputTextWithHint("##input", hint.c_str(), value.data(), maxLength + 1, ImGuiInputTextFlags_EnterReturnsTrue);
+    value.resize(std::strlen(value.c_str()));
+
+    hovered = ImGui::IsItemHovered() || (ImGui::IsItemFocused() && ImGui::GetIO().NavVisible);
+    editing = ImGui::IsItemActive();
+
+    ImGui::PopStyleColor(8);
+    ImGui::PopStyleVar(2);
+    ImGui::PopFont();
+  } else {
+    const Rect content = Rect{.min = {rect.min.x + pad, rect.min.y}, .max = {rect.max.x - pad, rect.max.y}};
+    Fade       fade(value.empty() ? theme.mutedAlpha : 1.0f);
+    label(ctx, content, value.empty() ? placeholder : std::string_view(value), Anchor::Left);
+  }
+
+  ImGui::PopID();
+
+  drawList->ChannelsSetCurrent(0);
+  const f32  hover  = smoothed(hoverID, hovered ? 1.0f : 0.0f, theme.hoverRate, ctx.dt);
+  const f32  active = smoothed(activeID, editing ? 1.0f : 0.0f, theme.hoverRate, ctx.dt);
+  const vec4 fill   = glm::mix(theme.fill, theme.fillHovered, std::max(hover, active));
+  const f32  width  = ctx.px(glm::mix(theme.outlineWidth, theme.outlineWidthHovered, std::max(hover, active)));
+  box(ctx, rect, fill, theme.outline, width);
+  drawList->ChannelsMerge();
+
+  return submitted;
 }
 
 bool slider(const Context& ctx, const Rect& rect, std::string_view text, f32& value, f32 min, f32 max, f32 step) {

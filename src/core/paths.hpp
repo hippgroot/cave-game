@@ -26,4 +26,8 @@ inline std::filesystem::path config() {
   return std::filesystem::current_path();
 }
 
+inline std::filesystem::path saves() {
+  return config() / "saves";
+}
+
 }

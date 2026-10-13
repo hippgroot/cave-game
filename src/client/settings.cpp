@@ -1,11 +1,11 @@
 #include "client/settings.hpp"
 
+#include "core/files.hpp"
 #include "core/paths.hpp"
 
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
-#include <fstream>
 #include <print>
 
 namespace {
@@ -95,25 +95,5 @@ void Settings::save() const {
 
   out << YAML::EndMap;
 
-  const std::filesystem::path target = path();
-  const std::filesystem::path temp   = std::filesystem::path(target).concat(".tmp");
-
-  std::error_code error;
-  std::filesystem::create_directories(target.parent_path(), error);
-  if (error) {
-    std::println(stderr, "Failed to create {}: {}", target.parent_path().string(), error.message());
-    return;
-  }
-
-  {
-    std::ofstream file(temp, std::ios::trunc);
-    if (!file) {
-      std::println(stderr, "Failed to open {} for writing", temp.string());
-      return;
-    }
-    file << out.c_str() << '\n';
-  }
-
-  std::filesystem::rename(temp, target, error);
-  if (error) std::println(stderr, "Failed to save {}: {}", target.string(), error.message());
+  files::writeAtomic(path(), out.c_str());
 }

@@ -22,6 +22,9 @@ struct Theme {
   vec4 text        = {1.0f, 1.0f, 1.0f, 1.0f};
   vec4 shadow      = {0.0f, 0.0f, 0.0f, 0.6f};
 
+  f32 disabledAlpha = 0.4f;
+  f32 mutedAlpha    = 0.6f;
+
   f32 outlineWidth        = 2.0f;
   f32 outlineWidthHovered = 3.0f;
   f32 hoverShift          = 10.0f;

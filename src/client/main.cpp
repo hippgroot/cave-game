@@ -1,7 +1,9 @@
 #include "client/settings.hpp"
 #include "client/ui/screen.hpp"
 #include "client/ui/screens/main_menu.hpp"
+#include "client/ui/screens/multiplayer_menu.hpp"
 #include "client/ui/screens/settings_menu.hpp"
+#include "client/ui/screens/singleplayer_menu.hpp"
 #include "core/threadbus.hpp"
 #include "engine/renderer.hpp"
 
@@ -13,6 +15,7 @@
 #include <grf/window.hpp>
 
 #include <filesystem>
+#include <print>
 
 using namespace std::chrono_literals;
 
@@ -61,8 +64,12 @@ int main() {
 
   screens.push<MainMenu>(MainMenu::Info{
     .actions = MainMenu::Actions{
-      .singleplayer = [] {},
-      .multiplayer  = [] {},
+      .singleplayer = [&screens] { screens.push<SingleplayerMenu>(SingleplayerMenu::Info{
+                                     .play = [](const WorldSave& world) { std::println("Play world '{}' ({})", world.name, world.directory.string()); }
+                                   }); },
+      .multiplayer  = [&screens] { screens.push<MultiplayerMenu>(MultiplayerMenu::Info{
+                                     .join = [](const ServerEntry& server) { std::println("Join server '{}' at {}", server.name, server.address); }
+                                   }); },
       .settings     = [&screens, &settings, &swapchain, &applySettings] { screens.push<SettingsMenu>(SettingsMenu::Info{
                                                                             .settings    = settings,
                                                                             .apply       = applySettings,

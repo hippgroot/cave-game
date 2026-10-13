@@ -33,7 +33,6 @@ constexpr f32  _sectionSpacing = 20.0f;
 constexpr vec2 _doneExtent     = {340.0f, 52.0f};
 constexpr f32  _enterOffset    = 24.0f;
 constexpr f32  _pageOffset     = 16.0f;
-constexpr f32  _disabledAlpha  = 0.4f;
 
 constexpr ui::Tween _enter{
   .delay    = 0.0f,
@@ -152,14 +151,9 @@ void SettingsMenu::drawVideo(const ui::Context& ctx, const ui::Rect& area) {
   if (ui::button(ctx, rects[0], std::format("Display Mode: {}###window_mode", borderless ? "Borderless" : "Windowed")))
     video.windowMode = borderless ? grf::Window::Mode::Windowed : grf::Window::Mode::Borderless;
 
-  if (m_info.vsyncLocked) {
-    ui::Context locked = ctx;
-    locked.interactive = false;
-    ui::Fade fade(_disabledAlpha);
-    ui::button(locked, rects[1], "VSync: On###vsync");
-  } else if (ui::button(ctx, rects[1], std::format("VSync: {}###vsync", onOff(video.vsync)))) {
+  const bool vsync = video.vsync || m_info.vsyncLocked;
+  if (ui::button(ctx, rects[1], std::format("VSync: {}###vsync", onOff(vsync)), !m_info.vsyncLocked))
     video.vsync = !video.vsync;
-  }
 
   ui::slider(ctx, rects[2], std::format("Field of View: {:.0f}###fov", video.fov),
     video.fov, Settings::Video::minFOV, Settings::Video::maxFOV, 1.0f);
