@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -7,7 +8,6 @@
 #include <mutex>
 #include <optional>
 #include <stop_token>
-#include <string>
 #include <unordered_map>
 
 #define THREAD_BUS ThreadBus::instance()
@@ -52,10 +52,16 @@ public:
     return std::move(data);
   }
 
-  std::optional<T> wait_to_receive(std::stop_token st) {
+  std::optional<T> wait_to_receive(std::stop_token st, std::optional<std::chrono::milliseconds> timeout_ms) {
     std::unique_lock lock(m_mutex);
 
-    m_cv.wait(lock, st, [this] { return !m_queue.empty(); });
+    auto ready = [this] { return !m_queue.empty(); };
+
+    if (timeout_ms)
+      m_cv.wait_for(lock, st, *timeout_ms, ready);
+    else
+      m_cv.wait(lock, st, [this] { return !m_queue.empty(); });
+
     if (m_queue.empty()) return std::nullopt;
 
     auto data = std::move(m_queue.front());
@@ -67,13 +73,18 @@ public:
 
 class ThreadBus {
   std::mutex                                                  m_mutex;
-  std::unordered_map<ChannelID, std::unique_ptr<BaseChannel>> m_channels;
-  std::unordered_map<std::string, ChannelID>                  m_tagMap;
+  std::unordered_map<ChannelID, std::shared_ptr<BaseChannel>> m_channels;
+  ChannelID                                                   m_nextID = 0;
 
 public:
   ~ThreadBus() = default;
 
-  static ThreadBus& instance() {
+  ThreadBus(const ThreadBus&)            = delete;
+  ThreadBus(ThreadBus&&)                 = delete;
+  ThreadBus& operator=(const ThreadBus&) = delete;
+  ThreadBus& operator=(ThreadBus&&)      = delete;
+
+  inline static ThreadBus& instance() {
     static ThreadBus _instance;
     return _instance;
   }
@@ -82,46 +93,46 @@ public:
   ChannelID registerChannel() {
     std::lock_guard lock(m_mutex);
 
-    static ChannelID _nextID = 0;
-    m_channels.emplace(++_nextID, std::make_unique<Channel<T>>());
+    ChannelID id = ++m_nextID;
+    m_channels.emplace(id, std::make_shared<Channel<T>>());
 
-    return _nextID;
+    return id;
   }
 
   inline void unregisterChannel(ChannelID id) {
     std::lock_guard lock(m_mutex);
 
     auto itr = m_channels.find(id);
-    if (itr == m_channels.end()) return;
-
-    std::erase_if(m_tagMap, [&](auto elem) {
-      return elem.second == itr->first;
-    });
-    m_channels.erase(itr);
-  }
-
-  inline void tagChannel(ChannelID id, const std::string& tag) {
-    std::lock_guard lock(m_mutex);
-
-    if (m_channels.find(id) == m_channels.end()) return;
-    m_tagMap.emplace(tag, id);
-  }
-
-  inline ChannelID channelID(const std::string& tag) const {
-    std::lock_guard lock(m_mutex);
-
-    auto itr = m_tagMap.find(tag);
-    return itr == m_tagMap.end() ? 0 : itr->second;
+    if (itr != m_channels.end())
+      m_channels.erase(itr);
   }
 
   template <typename T>
-  Channel<T>* channel(ChannelID id) {
-    std::lock_guard lock(m_mutex);
+  void send(ChannelID id, T data) {
+    auto channel = find<T>(id);
+    if (channel == nullptr) return;
+    channel->send(std::move(data));
+  }
 
-    auto itr = m_channels.find(id);
-    return itr == m_channels.end() ? nullptr : dynamic_cast<Channel<T>*>(itr->second.get());
+  template <typename T>
+  std::optional<T> receive(ChannelID id) {
+    auto channel = find<T>(id);
+    return channel == nullptr ? std::nullopt : channel->receive();
+  }
+
+  template <typename T>
+  std::optional<T> wait_to_receive(ChannelID id, std::stop_token st, std::optional<std::chrono::milliseconds> timeout_ms = std::nullopt) {
+    auto channel = find<T>(id);
+    return channel == nullptr ? std::nullopt : channel->wait_to_receive(st, timeout_ms);
   }
 
 private:
   ThreadBus() = default;
+
+  template <typename T>
+  std::shared_ptr<Channel<T>> find(ChannelID id) {
+    std::lock_guard lock(m_mutex);
+    auto            itr = m_channels.find(id);
+    return itr == m_channels.end() ? nullptr : std::dynamic_pointer_cast<Channel<T>>(itr->second);
+  }
 };

@@ -1,0 +1,8 @@
+fallback: textures/default.png
+
+blocks:
+  - { id: 0, name: air }
+  - { id: 1, name: grass,   texture: textures/grass_block.png }
+  - { id: 2, name: dirt,    texture: textures/dirt_block.png }
+  - { id: 3, name: stone,   texture: textures/stone_block.png }
+  - { id: 4, name: bedrock, texture: textures/bedrock_block.png }
