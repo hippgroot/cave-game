@@ -2,21 +2,48 @@
 
 #include "core/types.hpp"
 
-class Settings {
-  f32 m_sensitivity = 0.001f;
-  f32 m_fov         = glm::radians(75.0f);
+#include <grf/window.hpp>
 
-public:
-  ~Settings() = default;
+#include <filesystem>
 
-  Settings(const Settings&)            = delete;
-  Settings(Settings&&)                 = delete;
-  Settings& operator=(const Settings&) = delete;
-  Settings& operator=(Settings&&)      = delete;
+struct Settings {
+  struct General {
+    bool operator==(const General&) const = default;
+  };
 
-  inline void setFOV(f32 fov) { m_fov = fov; }
-  inline void setSensitivity(f32 sensitivity) { m_sensitivity = sensitivity; }
+  struct Controls {
+    static constexpr f32 minSensitivity = 0.1f;
+    static constexpr f32 maxSensitivity = 3.0f;
 
-  inline f32 getFOV() const { return m_fov; }
-  inline f32 getSensitivity() const { return m_sensitivity; }
+    f32  sensitivity = 1.0f;
+    bool invertY     = false;
+
+    bool operator==(const Controls&) const = default;
+  };
+
+  struct Video {
+    static constexpr f32 minFOV = 30.0f;
+    static constexpr f32 maxFOV = 110.0f;
+
+    grf::Window::Mode windowMode = grf::Window::Mode::Windowed;
+    bool              vsync      = true;
+    f32               fov        = 75.0f;
+
+    bool operator==(const Video&) const = default;
+  };
+
+  struct Audio {
+    bool operator==(const Audio&) const = default;
+  };
+
+  General  general;
+  Controls controls;
+  Video    video;
+  Audio    audio;
+
+  bool operator==(const Settings&) const = default;
+
+  static std::filesystem::path path();
+  static Settings              load();
+  void                         save() const;
 };

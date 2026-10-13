@@ -1,5 +1,7 @@
 add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/settings.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/settings.cpp
 
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.cpp
@@ -16,10 +18,15 @@ add_executable(cave-game
 
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/main_menu.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/main_menu.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/screens/settings_menu.cpp
 )
 
 target_include_directories(cave-game PRIVATE
   ${PROJECT_SOURCE_DIR}/src
 )
 
-target_link_libraries(cave-game PRIVATE CaveGame::engine)
+target_link_libraries(cave-game PRIVATE
+  CaveGame::engine
+  yaml-cpp::yaml-cpp
+)

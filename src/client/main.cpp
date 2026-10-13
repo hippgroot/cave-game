@@ -1,5 +1,7 @@
+#include "client/settings.hpp"
 #include "client/ui/screen.hpp"
 #include "client/ui/screens/main_menu.hpp"
+#include "client/ui/screens/settings_menu.hpp"
 #include "core/threadbus.hpp"
 #include "engine/renderer.hpp"
 
@@ -20,13 +22,16 @@ int main() {
   ChannelID beginFrameChannel  = THREAD_BUS.registerChannel<f32>();
   ChannelID renderFrameChannel = THREAD_BUS.registerChannel<Renderer::FrameData>();
 
+  Settings settings = Settings::load();
+
   grf::Window    window(grf::Window::Info{
     .width  = 1280,
     .height = 720,
-    .title  = "Cave Game"
+    .title  = "Cave Game",
+    .mode   = settings.video.windowMode
   });
   grf::Device    device;
-  grf::Swapchain swapchain(device, window);
+  grf::Swapchain swapchain(device, window, grf::Swapchain::Info{.format = grf::Format::bgra8_srgb, .colorspace = grf::ColorSpace::srgb_nonlinear, .vsync = settings.video.vsync});
   grf::GUI       gui(device, swapchain);
   grf::Profiler  profiler(device);
 
@@ -46,11 +51,23 @@ int main() {
   bool running   = true;
   bool showDebug = false;
 
+  auto applySettings = [&window, &swapchain](const Settings& applied) {
+    window.setMode(applied.video.windowMode);
+    if (applied.video.vsync || swapchain.vsyncOnly())
+      swapchain.enableVsync();
+    else
+      swapchain.disableVsync();
+  };
+
   screens.push<MainMenu>(MainMenu::Info{
     .actions = MainMenu::Actions{
       .singleplayer = [] {},
       .multiplayer  = [] {},
-      .settings     = [] {},
+      .settings     = [&screens, &settings, &swapchain, &applySettings] { screens.push<SettingsMenu>(SettingsMenu::Info{
+                                                                            .settings    = settings,
+                                                                            .apply       = applySettings,
+                                                                            .vsyncLocked = swapchain.vsyncOnly()
+                                                                          }); },
       .exit         = [&running] { running = false; }
     },
     .entrance = MainMenu::Entrance::Left

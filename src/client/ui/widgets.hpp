@@ -30,5 +30,7 @@ void label(const Context& ctx, const Rect& rect, std::string_view text,
 void label(const Context& ctx, const Rect& rect, std::string_view text, Anchor align = Anchor::Center);
 
 bool button(const Context& ctx, const Rect& rect, std::string_view text);
+bool tab(const Context& ctx, const Rect& rect, std::string_view text, bool selected);
+bool slider(const Context& ctx, const Rect& rect, std::string_view text, f32& value, f32 min, f32 max, f32 step);
 
 }
