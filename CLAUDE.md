@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Cave Game is a Minecraft Alpha-style voxel game in C++26 on Vulkan, built on the owner's own rendering framework GRF (`external/grf`). The `refactor` branch is a rebuild on a new architecture: menus, settings, world and server lists, the integrated server, and LAN/remote networking work; world generation, meshing, and in-game rendering are not ported yet.
+Cave Game is a Minecraft Alpha-style voxel game in C++26 on Vulkan, built on the owner's own rendering framework GRF (`external/grf`). The `refactor` branch is a rebuild on a new architecture: menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side chunk meshing work.
 
-Read `docs/architecture.md` before making structural changes. `docs/networking.md` and `docs/ui.md` cover those subsystems.
+Read `docs/architecture.md` before making structural changes. `docs/world.md`, `docs/player.md`, `docs/networking.md`, and `docs/ui.md` cover those subsystems.
 
 ## Build and run
 
@@ -35,10 +35,13 @@ CAVE_LOG=debug build/mac-debug/src/client/cave-game
 ## Threading rules
 
 - Cross-thread communication goes through `THREAD_BUS` channels or `net::Link`. Don't add shared mutable state between threads.
+- Background work goes through `Task<T>` on the `SCHEDULER`. Jobs capture `shared_ptr`s to what they need, never `this`.
+- Chunk generation stages run concurrently on many chunks: they must be `const` and only touch blocks through their `Region`. They must also be deterministic: use `Rng`/`deriveSeed` (never `std::` distributions), and when writing neighbours use order-independent rules (see `docs/world.md#determinism`).
 - `ThreadBus::send<T>` requires an explicit `T`. A message sent or received with the wrong type silently goes nowhere.
 - ImGui is main-thread only. The renderer must draw the GUI with `GUI::render(cmd, snapshot)` using the `GUI::DrawData` from `FrameData`, never the overload that calls `ImGui::Render()`.
 - Long-lived threads are `std::jthread` members stopped in the owner's destructor, and start their body with `logging::ThreadScope`.
 - `Session` only sees a `ClientLink` and `Game` only sees `ServerLink`s. Keep local and remote play indistinguishable to both.
+- Player movement is server-authoritative with client prediction. `Player::step` must stay deterministic and depend only on its state, the `Controls`, and `dt`, or prediction will drift.
 
 ## Conventions
 

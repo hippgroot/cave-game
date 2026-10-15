@@ -1,5 +1,8 @@
+#include "client/controller.hpp"
+#include "client/mesher.hpp"
 #include "client/session.hpp"
 #include "client/settings.hpp"
+#include "client/ui/debug_overlay.hpp"
 #include "client/ui/screen.hpp"
 #include "client/ui/screens/main_menu.hpp"
 #include "client/ui/screens/multiplayer_menu.hpp"
@@ -9,6 +12,7 @@
 #include "client/ui/screens/status_screen.hpp"
 #include "core/log.hpp"
 #include "core/threadbus.hpp"
+#include "engine/camera.hpp"
 #include "engine/renderer.hpp"
 
 #include <grf/device.hpp>
@@ -63,12 +67,21 @@ int main() {
   bool running   = true;
   bool showDebug = false;
 
-  auto applySettings = [&window, &swapchain](const Settings& applied) {
+  Controller controller;
+  Mesher     mesher;
+  Camera     camera;
+  uvec2      viewport = uvec2(0);
+  f32        fov      = 0.0f;
+
+  std::unique_ptr<Session> session;
+
+  auto applySettings = [&window, &swapchain, &session](const Settings& applied) {
     window.setMode(applied.video.windowMode);
     if (applied.video.vsync || swapchain.vsyncOnly())
       swapchain.enableVsync();
     else
       swapchain.disableVsync();
+    if (session != nullptr) session->setViewDistance(applied.video.viewDistance);
   };
 
   auto openSettings = [&screens, &settings, &swapchain, &applySettings] {
@@ -79,8 +92,7 @@ int main() {
     });
   };
 
-  std::unique_ptr<Session> session;
-  MainMenu::Info           mainMenu;
+  MainMenu::Info mainMenu;
 
   auto showStatus = [&screens](str title, str message, str button, std::function<void()> action) {
     screens.push<StatusScreen>(StatusScreen::Info{
@@ -91,22 +103,25 @@ int main() {
     });
   };
 
-  auto endSession = [&screens, &session, &mainMenu, &showStatus](std::optional<str> reason) {
+  auto endSession = [&screens, &session, &mesher, &mainMenu, &showStatus](std::optional<str> reason) {
     session.reset();
+    mesher.clear();
     screens.clear();
     screens.push<MainMenu>(mainMenu);
     if (reason) showStatus("DISCONNECTED", *reason, "Back to Title", [&screens] { screens.pop(); });
   };
 
-  auto startSession = [&session, &showStatus, &endSession](std::unique_ptr<Session> next, str title, str message) {
+  auto startSession = [&session, &settings, &controller, &showStatus, &endSession](std::unique_ptr<Session> next, str title, str message) {
     session = std::move(next);
+    controller.reset();
+    session->setViewDistance(settings.video.viewDistance);
     showStatus(std::move(title), std::move(message), "Cancel", [&endSession] { endSession(std::nullopt); });
   };
 
   auto playWorld = [&session, &settings, &startSession](const WorldSave& world) {
     if (session != nullptr) return;
     logging::client.info("Opening world '{}' ({})", world.name, world.directory.string());
-    startSession(Session::singleplayer(settings.general.playerName), "LOADING", world.name);
+    startSession(Session::singleplayer(world.seed, settings.general.playerName), "LOADING", world.name);
   };
 
   auto joinServer = [&session, &settings, &startSession, &showStatus, &screens](const ServerEntry& server) {
@@ -154,8 +169,17 @@ int main() {
     f32 dt = *dtopt;
     profiler.logFrameTime(dt);
 
+    const bool playing = session != nullptr && session->inGame() && screens.empty();
+    window.setCursorCaptured(playing);
+    if (playing)
+      ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouse;
+    else
+      ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+
+    const Controls controls = controller.sample(window, settings.controls, playing);
+
     if (session != nullptr) {
-      switch (session->update()) {
+      switch (session->update(dt, controls)) {
       case Session::Event::Joined: screens.clear(); break;
       case Session::Event::Ended:  endSession(session->endReason()); break;
       case Session::Event::None:   break;
@@ -171,15 +195,44 @@ int main() {
     const bool pausePressed = inGame && screens.empty() && ImGui::IsKeyPressed(ImGuiKey_Escape, false);
 
     screens.draw(dt);
-    if (inGame && showDebug) profiler.draw();
+
+    const Session* active = session != nullptr && session->inGame() ? session.get() : nullptr;
+
+    if (active != nullptr && showDebug) {
+      profiler.draw();
+      ui::debugOverlay(*active, mesher);
+    }
+
+    std::optional<Camera::UpdateData> cameraData;
+    if (active != nullptr && active->player() != nullptr) {
+      const PlayerPrediction& player = *active->player();
+
+      if (const uvec2 size = uvec2(window.width(), window.height()); size != viewport) {
+        viewport = size;
+        camera.setViewport(size.x, size.y);
+      }
+      if (settings.video.fov != fov) {
+        fov = settings.video.fov;
+        camera.setFOV(fov);
+      }
+
+      camera.follow(player.eye(), player.pitch(), player.yaw());
+      cameraData = camera.update();
+    }
+
+    if (session != nullptr) {
+      const ChunkPos center = session->player() != nullptr ? Chunk::posOf(ivec3(glm::floor(session->player()->position()))) : ChunkPos(0);
+      mesher.update(session->takeChunkEvents(), session->world(), center);
+    }
+    Mesher::Changes meshes = mesher.take();
 
     if (pausePressed) openPauseMenu();
 
     Renderer::FrameData frameData{
       .guiSnapshot   = gui.snapshot(),
-      .cameraData    = std::nullopt,
-      .addedMeshes   = {},
-      .removedMeshes = {},
+      .cameraData    = std::move(cameraData),
+      .addedMeshes   = std::move(meshes.added),
+      .removedMeshes = std::move(meshes.removed),
     };
 
     THREAD_BUS.send<Renderer::FrameData>(renderFrameChannel, std::move(frameData));

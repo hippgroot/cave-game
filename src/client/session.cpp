@@ -6,11 +6,11 @@
 #include "net/client.hpp"
 #include "net/server.hpp"
 
-std::unique_ptr<Session> Session::singleplayer(std::string_view playerName) {
+std::unique_ptr<Session> Session::singleplayer(u64 seed, std::string_view playerName) {
   auto [client, server] = net::makeLinkPair();
   auto session          = std::unique_ptr<Session>(new Session(std::move(client)));
 
-  session->m_game = std::make_unique<Game>();
+  session->m_game = std::make_unique<Game>(Game::Info{.seed = seed});
   session->m_game->connect(std::move(server));
   session->hello(playerName);
 
@@ -37,7 +37,7 @@ Session::~Session() {
   }
 }
 
-Session::Event Session::update() {
+Session::Event Session::update(f32 dt, const Controls& controls) {
   if (m_ended) return Event::None;
 
   Event      event  = Event::None;
@@ -68,11 +68,33 @@ Session::Event Session::update() {
                  },
                  [&](const protocol::Disconnected& disconnected) {
                    end(disconnected.reason);
+                 },
+                 [&](const protocol::ChunkData& data) {
+                   auto chunk = Chunk::decode(data.blocks);
+                   if (!chunk) {
+                     logging::net.warn("Malformed chunk ({}, {}), ignoring", data.position.x, data.position.y);
+                     return;
+                   }
+                   m_world.insert(data.position, std::move(*chunk));
+                 },
+                 [&](const protocol::ChunkUnload& unload) {
+                   m_world.erase(unload.position);
+                 },
+                 [&](const protocol::PlayerSync& sync) {
+                   if (m_prediction)
+                     m_prediction->reconcile(sync);
+                   else
+                     m_prediction.emplace(sync);
                  }
                },
       *message);
 
     if (m_ended) return Event::Ended;
+  }
+
+  if (m_prediction) {
+    for (const protocol::PlayerInput& input : m_prediction->advance(dt, controls))
+      m_link.send(input);
   }
 
   if (closed) {
@@ -103,6 +125,24 @@ bool Session::openToLan(u16 port) {
 
   logging::client.info("World opened to LAN on port {}", port);
   return true;
+}
+
+void Session::setViewDistance(i32 chunks) {
+  if (m_viewDistance == chunks) return;
+  m_viewDistance = chunks;
+  m_link.send(protocol::ViewDistance{.chunks = static_cast<u32>(chunks)});
+}
+
+const ClientWorld& Session::world() const {
+  return m_world;
+}
+
+std::vector<ChunkEvent> Session::takeChunkEvents() {
+  return m_world.takeEvents();
+}
+
+const PlayerPrediction* Session::player() const {
+  return m_prediction ? &*m_prediction : nullptr;
 }
 
 const str& Session::endReason() const {

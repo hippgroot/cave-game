@@ -26,12 +26,15 @@ struct Settings {
   };
 
   struct Video {
-    static constexpr f32 minFOV = 30.0f;
-    static constexpr f32 maxFOV = 110.0f;
+    static constexpr f32 minFOV          = 30.0f;
+    static constexpr f32 maxFOV          = 110.0f;
+    static constexpr i32 minViewDistance = 2;
+    static constexpr i32 maxViewDistance = 32;
 
-    grf::Window::Mode windowMode = grf::Window::Mode::Windowed;
-    bool              vsync      = true;
-    f32               fov        = 75.0f;
+    grf::Window::Mode windowMode   = grf::Window::Mode::Windowed;
+    bool              vsync        = true;
+    f32               fov          = 75.0f;
+    i32               viewDistance = 8;
 
     bool operator==(const Video&) const = default;
   };

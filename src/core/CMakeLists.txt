@@ -6,6 +6,7 @@ add_library(core STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/log.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/overloaded.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/paths.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/tasks.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/threadbus.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/types.hpp
 )

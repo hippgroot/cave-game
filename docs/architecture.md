@@ -3,7 +3,7 @@
 - [docs home](index.md)
 - [readme](../README.md)
 
-> The `refactor` branch is a rebuild of the game on a new foundation. Menus, settings, world and server lists, the integrated server, and LAN/remote networking work. World generation, meshing, and in-game rendering have not been ported yet, so the renderer currently only draws the GUI. See [planned](#planned) for what comes next.
+> The `refactor` branch is a rebuild of the game on a new foundation. Menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side meshing work. See [planned](#planned) for what comes next.
 
 ## Modules
 
@@ -13,9 +13,9 @@ Every module lives in `src/<module>/` and is its own static library. The include
 flowchart TB
   client["<b>cave-game</b> (client)<br/>main.cpp · Session · Settings · ui/"]
   engine["<b>engine</b><br/>Renderer · Camera · Assets · Graveyard"]
-  game["<b>game</b><br/>Game"]
+  game["<b>game</b><br/>Game · Player · World · ChunkPipeline"]
   net["<b>net</b><br/>protocol · codec · Link · Server · Client"]
-  core["<b>core</b><br/>ThreadBus · logging · paths · files"]
+  core["<b>core</b><br/>ThreadBus · Scheduler · logging · paths · files"]
   grf["<b>GRF</b>"]
   enet["<b>ENet</b>"]
 
@@ -31,11 +31,11 @@ flowchart TB
 
 | __folder__    | __target__                    | __contents__                                                                 |
 | ---           | ---                           | ---                                                                          |
-| `src/core`    | `core` (`CaveGame::core`)     | `ThreadBus` and `Channel`, logging, `paths`, `files::writeAtomic`, type aliases, `overloaded` |
+| `src/core`    | `core` (`CaveGame::core`)     | `ThreadBus` and `Channel`, `Scheduler` and `Task`, logging, `paths`, `files::writeAtomic`, type aliases, `overloaded` |
 | `src/engine`  | `engine` (`CaveGame::engine`) | `Renderer`, `Camera`, `Assets` and `Registry`, `Graveyard`, `MeshData`       |
 | `src/net`     | `net` (`CaveGame::net`)       | wire protocol, binary codec, `Link`, `Address`, ENet `Server` and `Client`   |
-| `src/game`    | `game` (`CaveGame::game`)     | `Game`, the authoritative fixed-tick simulation                              |
-| `src/client`  | `cave-game` (executable)      | `main.cpp`, `Session`, `Settings`, `WorldSave`, `ServerList`, and the [UI](ui.md) |
+| `src/game`    | `game` (`CaveGame::game`)     | `Game`, the authoritative fixed-tick simulation, the [player](player.md) and its state machine, and the [world](world.md): `Chunk`, `World`, `ChunkPipeline` and its stages |
+| `src/client`  | `cave-game` (executable)      | `main.cpp`, `Session`, `ClientWorld`, `Mesher`, `PlayerPrediction`, `Controller`, `Settings`, `WorldSave`, `ServerList`, and the [UI](ui.md) |
 
 `game` must never depend on `engine` or `client`. It only knows about `core` and `net`, which keeps the door open for a headless dedicated server that links `game` without a window or GPU.
 
@@ -59,6 +59,25 @@ Channels are held by `shared_ptr`, so a thread that is in the middle of a send o
 
 The payload type is part of the lookup. `send` takes `std::type_identity_t<T>`, which forces the type to be written explicitly: a message sent with the wrong `T` would fail the channel's `dynamic_pointer_cast` and be dropped without an error.
 
+### Scheduler and tasks
+
+`Scheduler` (`core/tasks.hpp`, reached through `SCHEDULER`) owns `hardware_concurrency() - 3` worker threads (at least one), leaving cores for the main, render, and game threads. Jobs are queued in a `std::map` keyed by `TaskID = (priority << 32) | sequence`, so the lowest priority value runs first and equal priorities run in submission order. `submit`, `withdraw`, and `updatePriority` are each one locked map operation.
+
+`Task<T>` is the handle you normally use:
+
+```cpp
+Task<Result> task([chunks] { return generate(chunks); }, priority);
+task.updatePriority(newPriority);
+if (auto result = task.take()) use(*result);
+task.cancel();
+```
+
+- The handle and the job share a `shared_ptr` state, so a `Task` is movable and destroying one never leaves a running job writing into freed memory.
+- `take()` returns the result once the job has completed and empties the handle.
+- `cancel()` withdraws a job that hasn't started and returns `true`. If the job is already running it returns `false` and keeps the handle, so the result can still be collected. `~Task` cancels.
+- `updatePriority` only affects jobs that are still queued.
+- `T` must be a value type; there is no `Task<void>`.
+
 ### Logging
 
 `logging::Category` objects (`core`, `net`, `game`, `client`, `render`) each carry their own level and expose `trace` through `error` with `std::format` syntax. Every thread wraps its body in a `logging::ThreadScope`, which names the thread in log output and logs its uptime on exit. Levels are configured at startup from the `CAVE_LOG` environment variable; see [running](building/index.md#logging).
@@ -74,6 +93,7 @@ The payload type is part of the lookup. `send` takes `std::type_identity_t<T>`, 
 | `main`       | `main()`      | whole program                | window events, ImGui, the screen stack, `Session::update`, building `FrameData` |
 | `render`     | `Renderer`    | whole program                | renders frame N-1 while `main` builds frame N                |
 | `game`       | `Game`        | while hosting a world        | fixed 20 tick-per-second simulation                          |
+| `worker-N`   | `Scheduler`   | from first use to exit       | runs `Task` jobs: chunk generation stages and chunk meshing  |
 | `net-server` | `net::Server` | while a world is open to LAN | ENet host relaying remote players into `Game`                |
 | `net-client` | `net::Client` | while joined to a server     | ENet peer relaying the session to a remote server            |
 
@@ -103,8 +123,8 @@ sequenceDiagram
     R->>R: submit and present
   and build frame N
     M->>M: pollEvents, wait for dt (8ms timeout)
-    M->>M: Session::update
-    M->>M: GUI::newFrame, ScreenStack::draw
+    M->>M: capture cursor, Controller::sample, Session::update (predict and send input)
+    M->>M: GUI::newFrame, ScreenStack::draw, camera, Mesher::update
     M->>R: renderFrame (FrameData N)
   end
 ```
@@ -152,8 +172,10 @@ The wire protocol and the handshake are described in [networking](networking.md)
 2. `receive` handles every queued message from every peer and marks peers whose link closed.
 3. `expirePeers` kicks peers that haven't sent `Hello` within `handshakeTimeout` (5 seconds).
 4. `removePeers` drops leaving peers and broadcasts `PlayerLeft`.
-5. `simulate` advances the world (empty for now).
-6. `sync` sends every joined player a `TickSync`.
+5. `simulate` steps each player once per queued `PlayerInput` and moves its `chunkCenter` with it; see [player](player.md#server).
+6. `updateWorld` gives the world one `ChunkLoader` per joined player and advances the [generation pipeline](world.md#generation-pipeline).
+7. `streamChunks` sends each player the completed chunks in its view and unloads the ones that left it.
+8. `sync` sends every joined player a `TickSync` and a `PlayerSync`.
 
 Destroying `Game` stops the thread and sends `Disconnected{"Server closed"}` to every remaining peer.
 
@@ -164,10 +186,11 @@ Destroying `Game` stops the thread and sends `Disconnected{"Server closed"}` to 
 - `Assets` loads block textures listed in `assets/blocks.yaml` into a bindless texture lookup buffer, and compiles every `.vert` and `.frag` under `assets/shaders/` at startup.
 - Meshes arrive as renderer-agnostic `MeshData` (vertex bytes, indices, optional aux buffer, push constants, AABB, pipeline name, `MeshID`, layer) and are cached by `MeshID`. Each frame the cache is frustum culled and sorted into a render buffer.
 - `Graveyard` holds retired buffers and images until no in-flight frame can still reference them.
+- Pipelines are created by name in `Renderer::createPipelines`: `chunk_draw` (opaque, depth write, back-face culling) and `chunk_translucent` (blended, no depth write, no culling), both from `assets/shaders/chunk_draw/`. A mesh's `layer` sorts it before or after other layers, and layers with bit 3 set (8 and up) are drawn back to front.
 
 ## Planned
 
-- **Job system.** A global `JobPool` sized to the remaining hardware concurrency (at least one worker), where `submit` returns a `Task<T>` handle with a status, priority, cancellation, and result. Chunk generation and meshing will run here.
-- **World.** The staged chunk generation pipeline, a client-side world replica, and chunk meshes flowing through `FrameData` to the renderer.
-- **Game input and events.** `PlayerInput` is defined and the server already stores the latest one per peer, but the client doesn't send it yet. The client will send input each frame, `simulate` will consume it, and the game will send world state back.
+- **Rendering.** Ambient occlusion and lighting in the mesher, a packed vertex format, and greedy meshing.
+- **World.** Aquifers, ravines, lakes, vegetation, and structures as further stages, and saving chunks to disk.
+- **More player states.** Creative and survival states with collision, other players' positions sent to each client, and redundant input packets to hide loss.
 - **Renderer passes.** Per-frame scene parameters and a list of passes (sky and atmosphere first).

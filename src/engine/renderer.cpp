@@ -80,6 +80,22 @@ void Renderer::createPipelines() {
         }
       }
     });
+
+  createGraphics("chunk_translucent", {shaders["chunk_draw/chunk.vert"], shaders["chunk_draw/chunk.frag"]},
+    GraphicsPipelineSettings{
+      .colorFormats = {m_swapchain.format()},
+      .depthFormat  = m_depthFormat,
+      .cullMode     = CullMode::None,
+      .depthTest    = true,
+      .depthWrite   = false,
+      .blends       = {
+        BlendState{
+          .enable         = true,
+          .srcColorFactor = BlendFactor::SrcAlpha,
+          .dstColorFactor = BlendFactor::OneMinusSrcAlpha
+        }
+      }
+    });
 }
 
 void Renderer::loop(std::stop_token st) {

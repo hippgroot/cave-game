@@ -15,6 +15,7 @@
 namespace net {
 
 inline constexpr size maxStringLength = 4096;
+inline constexpr size maxBytesLength  = 1 << 20;
 
 class Writer {
   std::vector<u8> m_bytes;
@@ -32,6 +33,11 @@ public:
   void write(f64 value) { write(std::bit_cast<u64>(value)); }
 
   void write(const str& value) {
+    write(static_cast<u32>(value.size()));
+    m_bytes.insert(m_bytes.end(), value.begin(), value.end());
+  }
+
+  void write(const std::vector<u8>& value) {
     write(static_cast<u32>(value.size()));
     m_bytes.insert(m_bytes.end(), value.begin(), value.end());
   }
@@ -86,6 +92,17 @@ public:
     }
     const auto* begin = reinterpret_cast<const char*>(m_bytes.data() + m_offset - length);
     value.assign(begin, length);
+  }
+
+  void read(std::vector<u8>& value) {
+    u32 length = 0;
+    read(length);
+    if (!m_ok || length > maxBytesLength || !take(length)) {
+      m_ok = false;
+      return;
+    }
+    const auto* begin = m_bytes.data() + m_offset - length;
+    value.assign(begin, begin + length);
   }
 
   template <glm::length_t L, typename T, glm::qualifier Q>

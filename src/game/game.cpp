@@ -2,6 +2,7 @@
 
 #include "core/log.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
 #include <vector>
@@ -11,6 +12,7 @@ namespace {
 constexpr auto _tickDuration  = std::chrono::nanoseconds(std::chrono::seconds(1)) / Game::tickRate;
 constexpr u32  _maxCatchUp    = 10;
 constexpr auto _closedMessage = "Server closed";
+constexpr vec3 _spawn         = vec3(8.5f, 100.0f, 8.5f);
 
 str sanitizeName(std::string_view name) {
   str result;
@@ -23,8 +25,10 @@ str sanitizeName(std::string_view name) {
 
 }
 
-Game::Game()
-: m_joinChannel(THREAD_BUS.registerChannel<net::ServerLink>()) {
+Game::Game(const Info& info)
+: m_world(World::Info{.seed = info.seed}),
+  m_joinChannel(THREAD_BUS.registerChannel<net::ServerLink>()) {
+  logging::game.info("Created world with seed {}", info.seed);
   m_thread = std::jthread([this](std::stop_token st) { loop(st); });
 }
 
@@ -80,6 +84,8 @@ void Game::tick() {
   expirePeers();
   removePeers();
   simulate();
+  updateWorld();
+  streamChunks();
   sync();
   ++m_tick;
 }
@@ -138,12 +144,85 @@ void Game::removePeers() {
     broadcast(protocol::PlayerLeft{.id = player});
 }
 
-void Game::simulate() {}
+void Game::simulate() {
+  for (auto& [id, peer] : m_peers) {
+    if (!peer.avatar || peer.leaving) continue;
+
+    size steps = std::min<size>(peer.inputs.size(), peer.inputs.size() > inputBuffer ? 2 : 1);
+    for (; steps > 0; --steps) {
+      const protocol::PlayerInput input = peer.inputs.front();
+      peer.inputs.pop_front();
+
+      peer.avatar->step(Controls::fromInput(input), tickDelta);
+      peer.lastInputSequence = input.sequence;
+    }
+
+    peer.chunkCenter = Chunk::posOf(ivec3(glm::floor(peer.avatar->position())));
+  }
+}
+
+void Game::updateWorld() {
+  std::vector<ChunkLoader> loaders;
+  for (const auto& [id, peer] : m_peers) {
+    if (!peer.player || peer.leaving) continue;
+    loaders.push_back(ChunkLoader{.center = peer.chunkCenter, .radius = peer.viewDistance});
+  }
+
+  m_world.update(loaders);
+}
+
+void Game::streamChunks() {
+  for (auto& [id, peer] : m_peers) {
+    if (!peer.player || peer.leaving) continue;
+    unloadChunks(id, peer);
+    loadChunks(id, peer);
+  }
+}
+
+void Game::unloadChunks(PeerID id, Peer& peer) {
+  std::erase_if(peer.sentChunks, [&](ChunkPos pos) {
+    if (Chunk::distance(pos, peer.chunkCenter) <= peer.viewDistance) return false;
+    send(id, peer, protocol::ChunkUnload{.position = pos});
+    return true;
+  });
+}
+
+void Game::loadChunks(PeerID id, Peer& peer) {
+  const i32 radius = peer.viewDistance;
+  if (peer.sentChunks.size() == static_cast<size>((2 * radius + 1) * (2 * radius + 1))) return;
+
+  std::vector<ivec2> missing;
+  for (i32 z = -radius; z <= radius; ++z) {
+    for (i32 x = -radius; x <= radius; ++x) {
+      if (!peer.sentChunks.contains(peer.chunkCenter + ivec2(x, z))) missing.emplace_back(x, z);
+    }
+  }
+
+  std::ranges::sort(missing, [](ivec2 a, ivec2 b) {
+    return a.x * a.x + a.y * a.y < b.x * b.x + b.y * b.y;
+  });
+
+  u32 sent = 0;
+  for (const ivec2 offset : missing) {
+    if (sent == chunksPerTick) break;
+
+    const ChunkPos pos   = peer.chunkCenter + offset;
+    const auto     chunk = m_world.chunk(pos);
+    if (chunk == nullptr) continue;
+
+    send(id, peer, protocol::ChunkData{.position = pos, .blocks = chunk->encode()});
+    peer.sentChunks.insert(pos);
+    ++sent;
+  }
+}
 
 void Game::sync() {
   for (auto& [id, peer] : m_peers) {
     if (!peer.player || peer.leaving) continue;
-    send(id, peer, protocol::TickSync{.tick = m_tick, .lastInputSequence = peer.input.sequence});
+    send(id, peer, protocol::TickSync{.tick = m_tick, .lastInputSequence = peer.lastInputSequence});
+
+    if (!peer.avatar) continue;
+    send(id, peer, protocol::PlayerSync{.lastInputSequence = peer.lastInputSequence, .mode = static_cast<u8>(peer.avatar->mode()), .position = peer.avatar->position(), .velocity = peer.avatar->body().velocity});
   }
 }
 
@@ -160,6 +239,7 @@ void Game::handle(PeerID id, Peer& peer, const protocol::Hello& hello) {
 
   peer.player = ++m_nextPlayerID;
   peer.name   = sanitizeName(hello.playerName);
+  peer.avatar = Player(Player::Info{.position = _spawn, .mode = PlayerMode::Spectator});
 
   send(id, peer, protocol::Welcome{.playerID = *peer.player, .tick = m_tick});
 
@@ -179,14 +259,21 @@ void Game::handle(PeerID id, Peer& peer, const protocol::PlayerInput& input) {
     return;
   }
 
-  if (input.sequence <= peer.input.sequence) return;
-  peer.input = input;
+  const u32 newest = peer.inputs.empty() ? peer.lastInputSequence : peer.inputs.back().sequence;
+  if (input.sequence <= newest) return;
+
+  peer.inputs.push_back(input);
+  if (peer.inputs.size() > maxQueuedInputs) peer.inputs.pop_front();
 }
 
 void Game::handle(PeerID id, Peer& peer, const protocol::Goodbye&) {
   logging::net.debug("Peer {} said goodbye", id);
   peer.leaving     = true;
   peer.leaveReason = "quit";
+}
+
+void Game::handle(PeerID, Peer& peer, const protocol::ViewDistance& viewDistance) {
+  peer.viewDistance = static_cast<i32>(std::clamp<u32>(viewDistance.chunks, minViewDistance, maxViewDistance));
 }
 
 void Game::send(PeerID id, Peer& peer, protocol::ServerMessage message) {

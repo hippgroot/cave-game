@@ -1,8 +1,19 @@
 fallback: textures/default.png
 
 blocks:
-  - { id: 0, name: air }
-  - { id: 1, name: grass,   texture: textures/grass_block.png }
-  - { id: 2, name: dirt,    texture: textures/dirt_block.png }
-  - { id: 3, name: stone,   texture: textures/stone_block.png }
-  - { id: 4, name: bedrock, texture: textures/bedrock_block.png }
+  - { id: 0,  name: air }
+  - { id: 1,  name: grass,       texture: textures/grass_block.png }
+  - { id: 2,  name: dirt,        texture: textures/dirt_block.png }
+  - { id: 3,  name: stone,       texture: textures/stone_block.png }
+  - { id: 4,  name: bedrock,     texture: textures/bedrock_block.png }
+  - { id: 5,  name: sand,        texture: textures/sand_block.png }
+  - { id: 6,  name: sandstone,   texture: textures/sandstone_block.png }
+  - { id: 7,  name: gravel,      texture: textures/gravel_block.png }
+  - { id: 8,  name: water,       texture: textures/water_block.png }
+  - { id: 9,  name: snow,        texture: textures/snow_block.png }
+  - { id: 10, name: log,         texture: textures/log_block.png }
+  - { id: 11, name: leaves,      texture: textures/leaves_block.png }
+  - { id: 12, name: coal_ore,    texture: textures/coal_ore_block.png }
+  - { id: 13, name: iron_ore,    texture: textures/iron_ore_block.png }
+  - { id: 14, name: gold_ore,    texture: textures/gold_ore_block.png }
+  - { id: 15, name: diamond_ore, texture: textures/diamond_ore_block.png }

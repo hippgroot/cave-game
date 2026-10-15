@@ -59,9 +59,8 @@ layout(location = 2) out flat uint _Block;
 void main() {
   Vertex v = VERTICES[gl_VertexIndex];
 
-  vec3 chunkCoord = vec3(_Constants.chunkCoord.x, 0.0, _Constants.chunkCoord.y);
-  vec3 chunkCenter = (chunkCoord - vec3(0.5, 0.0, 0.5)) * float(_Constants.chunkSize);
-  vec3 pos = chunkCenter + v.pos;
+  vec3 chunkOrigin = vec3(_Constants.chunkCoord.x, 0.0, _Constants.chunkCoord.y) * float(_Constants.chunkSize);
+  vec3 pos = chunkOrigin + v.pos;
 
   gl_Position = CAMERA.projView * vec4(pos, 1.0);
   _UV = v.uv;

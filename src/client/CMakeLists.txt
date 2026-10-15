@@ -1,5 +1,15 @@
 add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_mesh.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/chunk_mesh.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/client_world.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/client_world.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/controller.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/controller.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/mesher.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/mesher.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/player_prediction.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/player_prediction.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/settings.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/session.hpp
@@ -12,6 +22,8 @@ add_executable(cave-game
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/anim.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/context.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/debug_overlay.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/ui/debug_overlay.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/layout.hpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/layout.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/ui/rect.hpp

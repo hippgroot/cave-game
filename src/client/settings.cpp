@@ -74,6 +74,7 @@ Settings Settings::load() {
     read(video, "window_mode", settings.video.windowMode);
     read(video, "vsync", settings.video.vsync);
     read(video, "fov", settings.video.fov);
+    read(video, "view_distance", settings.video.viewDistance);
   }
 
   if (settings.general.playerName.size() > General::maxPlayerNameLength)
@@ -81,6 +82,7 @@ Settings Settings::load() {
 
   settings.controls.sensitivity = std::clamp(settings.controls.sensitivity, Controls::minSensitivity, Controls::maxSensitivity);
   settings.video.fov            = std::clamp(settings.video.fov, Video::minFOV, Video::maxFOV);
+  settings.video.viewDistance   = std::clamp(settings.video.viewDistance, Video::minViewDistance, Video::maxViewDistance);
 
   return settings;
 }
@@ -102,6 +104,7 @@ void Settings::save() const {
   out << YAML::Key << "window_mode" << YAML::Value << toString(video.windowMode);
   out << YAML::Key << "vsync" << YAML::Value << video.vsync;
   out << YAML::Key << "fov" << YAML::Value << video.fov;
+  out << YAML::Key << "view_distance" << YAML::Value << video.viewDistance;
   out << YAML::EndMap;
 
   out << YAML::EndMap;

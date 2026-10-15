@@ -6,6 +6,8 @@ General notes for myself and anyone who is interested about how cave game is eng
 
 - [building cave game](building/index.md) — requirements, presets, per-platform setup, logging, and saved files
 - [architecture](architecture.md) — modules, threads, the thread bus, the frame pipeline, sessions, the game loop, and the renderer
+- [player](player.md) — the shared player simulation, its state machine, controls, and client prediction
+- [world](world.md) — chunks, the staged generation pipeline, adding a stage, and streaming chunks to clients
 - [networking](networking.md) — the message protocol, handshake, wire format, and ENet transport
 - [client UI](ui.md) — the screen stack, layout and widget helpers, and the menus
 

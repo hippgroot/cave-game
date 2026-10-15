@@ -5,6 +5,7 @@
 #include "client/ui/widgets.hpp"
 
 #include <array>
+#include <cmath>
 #include <format>
 #include <string_view>
 #include <vector>
@@ -88,13 +89,13 @@ void SettingsMenu::draw(const ui::Context& ctx) {
 
   const ui::Rect body = sections[1].translated(lift);
   drawTabs(ctx, ui::Rect{
-    .min = body.min,
-    .max = {body.max.x, body.min.y + ctx.px(_tabHeight)}
-  });
+                  .min = body.min,
+                  .max = {body.max.x, body.min.y + ctx.px(_tabHeight)}
+                });
   drawPage(ctx, ui::Rect{
-    .min = {body.min.x, body.min.y + ctx.px(_tabHeight + _tabGap)},
-    .max = body.max
-  });
+                  .min = {body.min.x, body.min.y + ctx.px(_tabHeight + _tabGap)},
+                  .max = body.max
+                });
 
   if (ui::button(ctx, sections[2].translated(lift), "Done")) ctx.screens.pop();
 
@@ -149,7 +150,7 @@ void SettingsMenu::drawControls(const ui::Context& ctx, const ui::Rect& area) {
 
 void SettingsMenu::drawVideo(const ui::Context& ctx, const ui::Rect& area) {
   Settings::Video& video      = m_info.settings.video;
-  const auto       rects      = rows(ctx, area, 3);
+  const auto       rects      = rows(ctx, area, 4);
   const bool       borderless = video.windowMode == grf::Window::Mode::Borderless;
 
   if (ui::button(ctx, rects[0], std::format("Display Mode: {}###window_mode", borderless ? "Borderless" : "Windowed")))
@@ -161,6 +162,11 @@ void SettingsMenu::drawVideo(const ui::Context& ctx, const ui::Rect& area) {
 
   ui::slider(ctx, rects[2], std::format("Field of View: {:.0f}###fov", video.fov),
     video.fov, Settings::Video::minFOV, Settings::Video::maxFOV, 1.0f);
+
+  f32 viewDistance = static_cast<f32>(video.viewDistance);
+  if (ui::slider(ctx, rects[3], std::format("Render Distance: {} chunks###view_distance", video.viewDistance),
+        viewDistance, static_cast<f32>(Settings::Video::minViewDistance), static_cast<f32>(Settings::Video::maxViewDistance), 1.0f))
+    video.viewDistance = static_cast<i32>(std::lround(viewDistance));
 }
 
 void SettingsMenu::drawAudio(const ui::Context& ctx, const ui::Rect& area) {

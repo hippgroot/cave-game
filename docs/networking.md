@@ -10,24 +10,28 @@ Every player, local or remote, talks to `Game` through the same message protocol
 Messages are plain structs in `src/net/protocol.hpp`, grouped by direction into two variants:
 
 ```cpp
-using ClientMessage = std::variant<Hello, PlayerInput, Goodbye>;
-using ServerMessage = std::variant<Welcome, TickSync, PlayerJoined, PlayerLeft, Disconnected>;
+using ClientMessage = std::variant<Hello, PlayerInput, Goodbye, ViewDistance>;
+using ServerMessage = std::variant<Welcome, TickSync, PlayerJoined, PlayerLeft, Disconnected, ChunkData, ChunkUnload, PlayerSync>;
 ```
 
 | __message__    | __direction__   | __delivery__ | __fields__                                   | __meaning__                                      |
 | ---            | ---             | ---          | ---                                          | ---                                              |
 | `Hello`        | client → server | reliable     | `version`, `playerName`                      | first message on every connection                |
-| `PlayerInput`  | client → server | unreliable   | `sequence`, `move`, `pitch`, `yaw`, `buttons` | latest input; older sequences are ignored       |
+| `PlayerInput`  | client → server | unreliable   | `sequence`, `move`, `pitch`, `yaw`, `buttons` | one tick of [player controls](player.md#networking); queued by the server, stale sequences dropped |
 | `Goodbye`      | client → server | reliable     |                                              | the player quit                                  |
+| `ViewDistance` | client → server | reliable     | `chunks`                                     | render distance; clamped to 2..32, accepted before `Hello` too |
 | `Welcome`      | server → client | reliable     | `playerID`, `tick`                           | handshake accepted                               |
 | `TickSync`     | server → client | unreliable   | `tick`, `lastInputSequence`                  | sent every tick to every joined player           |
 | `PlayerJoined` | server → client | reliable     | `id`, `playerName`                           | another player is in the game                    |
 | `PlayerLeft`   | server → client | reliable     | `id`                                         | another player left                              |
 | `Disconnected` | server → client | reliable     | `reason`                                     | the server is closing the connection             |
+| `ChunkData`    | server → client | reliable     | `position`, `blocks`                         | a completed chunk, [run-length encoded](#chunk-encoding) |
+| `ChunkUnload`  | server → client | reliable     | `position`                                   | the chunk left the player's view                 |
+| `PlayerSync`   | server → client | unreliable   | `lastInputSequence`, `mode`, `position`, `velocity` | the player's authoritative state after the last processed input, sent every tick |
 
-`protocol::isReliable` decides delivery; everything is reliable except `PlayerInput` and `TickSync`, which are superseded by the next one anyway.
+`protocol::isReliable` decides delivery; everything is reliable except `PlayerInput`, `TickSync`, and `PlayerSync`, which are superseded by the next one anyway.
 
-`protocol::version` (currently `1`) is checked during the handshake. Bump it whenever the wire format of any message changes.
+`protocol::version` (currently `2`) is checked during the handshake. Bump it whenever the wire format of any message changes.
 
 ## Handshake
 
@@ -45,6 +49,7 @@ sequenceDiagram
     G-->>G: broadcast PlayerJoined to everyone else
     loop every tick
       G->>C: TickSync { tick, lastInputSequence }
+      G->>C: PlayerSync { lastInputSequence, mode, position, velocity }
     end
   end
   C->>G: Goodbye
@@ -54,6 +59,7 @@ sequenceDiagram
 - Player names keep only printable ASCII, are cut to `protocol::maxPlayerNameLength` (16) characters, and fall back to `Player` if nothing is left.
 - A peer that hasn't sent `Hello` within `Game::handshakeTimeout` (5 seconds) is kicked.
 - A `Hello` after joining, or `PlayerInput` before joining, is ignored and logged.
+- Joining spawns the player in spectator mode; see [player](player.md).
 - A closed link without `Goodbye` is treated as `connection lost`.
 
 ## Wire format
@@ -66,9 +72,22 @@ u8 variant index | field 0 | field 1 | ...
 
 - Integers are little-endian at their declared width. `f32` and `f64` are bit-cast to `u32` and `u64`.
 - Strings are a `u32` length followed by the bytes, capped at `net::maxStringLength` (4096).
+- Byte blobs (`std::vector<u8>`) are a `u32` length followed by the bytes, capped at `net::maxBytesLength` (1 MiB).
 - GLM vectors are their components in order.
 
 Fields are found through each message's `fields()` member, which returns a `std::tie` of its members using deducing `this`, so one function serves both encoding (const) and decoding (mutable). `decode` returns `std::nullopt` for an unknown variant index, a truncated packet, an oversized string, or trailing bytes. The server disconnects a peer that sends a malformed packet.
+
+## Chunk encoding
+
+`ChunkData::blocks` is produced by `Chunk::encode` and read by `Chunk::decode` (`src/game/world/chunk.cpp`). It starts with the 256 column biomes, one byte each in `z * 16 + x` order. Then the chunk's blocks are walked in storage order (y-major) and written as runs:
+
+```
+u8 biome × 256 | (u16 run length (1..65535, little-endian) | u8 block id)...
+```
+
+Decoding rejects an unknown biome, a zero-length run, an unknown block id, runs that overflow the chunk, a trailing partial run, or a total that doesn't fill the chunk exactly. Layered terrain compresses well; generated chunks average about 4.6 KB, against 64 KB raw.
+
+The local link still goes through `encode`/`decode`, so singleplayer and remote play exercise the same path.
 
 ## Transport
 
@@ -85,7 +104,7 @@ Addresses are parsed by `net::Address::parse` as `host` or `host:port`. The defa
 
 ## Adding a message
 
-1. Add a struct to `src/net/protocol.hpp` with a `static constexpr std::string_view name` and a `fields()` member that ties every serialized member. Field types must be integers, `f32`, `f64`, `str`, or GLM vectors.
+1. Add a struct to `src/net/protocol.hpp` with a `static constexpr std::string_view name` and a `fields()` member that ties every serialized member. Field types must be integers, `f32`, `f64`, `str`, `std::vector<u8>`, or GLM vectors.
 2. Append it to `ClientMessage` or `ServerMessage`. Appending keeps existing variant indices stable; inserting in the middle changes them.
 3. If it is safe to drop, add it to the unreliable list in `isReliable`.
 4. Bump `protocol::version`.

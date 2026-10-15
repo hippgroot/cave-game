@@ -6,12 +6,13 @@
 #include <tuple>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace protocol {
 
 using PlayerID = u64;
 
-inline constexpr u32  version             = 1;
+inline constexpr u32  version             = 2;
 inline constexpr size maxPlayerNameLength = 16;
 inline constexpr size maxReasonLength     = 256;
 
@@ -40,6 +41,14 @@ struct Goodbye {
   static constexpr std::string_view name = "Goodbye";
 
   auto fields(this auto&) { return std::tie(); }
+};
+
+struct ViewDistance {
+  static constexpr std::string_view name = "ViewDistance";
+
+  u32 chunks = 0;
+
+  auto fields(this auto& self) { return std::tie(self.chunks); }
 };
 
 struct Welcome {
@@ -85,8 +94,36 @@ struct Disconnected {
   auto fields(this auto& self) { return std::tie(self.reason); }
 };
 
-using ClientMessage = std::variant<Hello, PlayerInput, Goodbye>;
-using ServerMessage = std::variant<Welcome, TickSync, PlayerJoined, PlayerLeft, Disconnected>;
+struct ChunkData {
+  static constexpr std::string_view name = "ChunkData";
+
+  ivec2           position = ivec2(0);
+  std::vector<u8> blocks;
+
+  auto fields(this auto& self) { return std::tie(self.position, self.blocks); }
+};
+
+struct ChunkUnload {
+  static constexpr std::string_view name = "ChunkUnload";
+
+  ivec2 position = ivec2(0);
+
+  auto fields(this auto& self) { return std::tie(self.position); }
+};
+
+struct PlayerSync {
+  static constexpr std::string_view name = "PlayerSync";
+
+  u32  lastInputSequence = 0;
+  u8   mode              = 0;
+  vec3 position          = vec3(0.0f);
+  vec3 velocity          = vec3(0.0f);
+
+  auto fields(this auto& self) { return std::tie(self.lastInputSequence, self.mode, self.position, self.velocity); }
+};
+
+using ClientMessage = std::variant<Hello, PlayerInput, Goodbye, ViewDistance>;
+using ServerMessage = std::variant<Welcome, TickSync, PlayerJoined, PlayerLeft, Disconnected, ChunkData, ChunkUnload, PlayerSync>;
 
 template <typename Message>
 std::string_view nameOf(const Message& message) {
@@ -96,7 +133,7 @@ std::string_view nameOf(const Message& message) {
 template <typename Message>
 bool isReliable(const Message& message) {
   return std::visit([]<typename T>(const T&) {
-    return !std::is_same_v<T, PlayerInput> && !std::is_same_v<T, TickSync>;
+    return !std::is_same_v<T, PlayerInput> && !std::is_same_v<T, TickSync> && !std::is_same_v<T, PlayerSync>;
   },
     message);
 }
