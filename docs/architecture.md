@@ -3,7 +3,7 @@
 - [docs home](index.md)
 - [readme](../README.md)
 
-> The `refactor` branch is a rebuild of the game on a new foundation. Menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side meshing work. See [planned](#planned) for what comes next.
+> Menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side meshing work. See [planned](#planned) for what comes next.
 
 ## Modules
 

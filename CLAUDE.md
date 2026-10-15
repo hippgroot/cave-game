@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Cave Game is a Minecraft Alpha-style voxel game in C++26 on Vulkan, built on the owner's own rendering framework GRF (`external/grf`). The `refactor` branch is a rebuild on a new architecture: menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side chunk meshing work.
+Cave Game is a Minecraft Alpha-style voxel game in C++26 on Vulkan, built on the owner's own rendering framework GRF (`external/grf`). Menus, settings, world and server lists, the integrated server, LAN/remote networking, staged world generation, chunk streaming, the spectator player, and client-side chunk meshing work.
 
 Read `docs/architecture.md` before making structural changes. `docs/world.md`, `docs/player.md`, `docs/networking.md`, and `docs/ui.md` cover those subsystems.
 
