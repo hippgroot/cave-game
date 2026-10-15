@@ -129,7 +129,8 @@ void FeatureStage::generate(Region& region) const {
 
     const Block ground = proto.chunk.get({x, height, z});
     if (ground != Block::Grass && ground != Block::Snow) continue;
-    if (proto.chunk.get({x, height + 1, z}) != Block::Air) continue;
+    const Block above = proto.chunk.get({x, height + 1, z});
+    if (above != Block::Air && above != Block::Leaves) continue;
 
     tree(region, rng, origin + ivec3(x, height, z));
   }

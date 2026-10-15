@@ -65,7 +65,7 @@ TerrainShape terrainShape(const ClimatePoint& climate) {
 
   shape.inland   = smoothstep(-0.05f, 0.15f, climate.continentalness);
   shape.mountain = shape.inland * spline(_mountains, climate.erosion) * peaks;
-  shape.height   = spline(_continents, climate.continentalness) + shape.mountain + shape.inland * spline(_hills, climate.erosion) * climate.peaksValleys;
+  shape.height   = squash(spline(_continents, climate.continentalness) + shape.mountain + shape.inland * spline(_hills, climate.erosion) * climate.peaksValleys);
 
   shape.river  = smoothstep(-0.75f, -0.95f, climate.peaksValleys) * smoothstep(-0.05f, 0.05f, climate.continentalness) * smoothstep(-0.5f, -0.3f, climate.erosion);
   shape.height = glm::mix(shape.height, static_cast<f32>(seaLevel - 4), shape.river);
@@ -73,6 +73,6 @@ TerrainShape terrainShape(const ClimatePoint& climate) {
   shape.swamp  = smoothstep(0.45f, 0.6f, climate.erosion) * shape.inland;
   shape.height = glm::mix(shape.height, static_cast<f32>(seaLevel + 1), shape.swamp * 0.85f);
 
-  shape.roughness = _baseRoughness + shape.mountain * _mountainRoughness;
+  shape.roughness = (_baseRoughness + shape.mountain * _mountainRoughness) * verticalScale;
   return shape;
 }

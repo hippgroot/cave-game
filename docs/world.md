@@ -53,7 +53,7 @@ The stage list lives in `makeStages` in `src/game/world/gen/stages.cpp`:
 
 `Climate` (`gen/climate.hpp`) holds five 2D FBm noises, sampled per block column and clamped to -1..1, the same parameters Minecraft 1.18+ uses:
 
-| __parameter__     | __frequency__ | __drives__                                                |
+| __parameter__     | __base frequency__ | __drives__                                                |
 | ---               | ---           | ---                                                       |
 | `continentalness` | 0.0010        | ocean, coast, or inland, and the base height (biased +0.1 toward land) |
 | `erosion`         | 0.0020        | how tall mountains get (low erosion = tall), swamps at high erosion |
@@ -61,17 +61,38 @@ The stage list lives in `makeStages` in `src/game/world/gen/stages.cpp`:
 | `temperature`     | 0.0009        | biome choice only                                         |
 | `humidity`        | 0.0011        | biome choice only                                         |
 
+The frequencies are divided by `horizontalStretch` (see [world scale](#world-scale)).
+
 One `Climate` is built per world and shared by the `biomes` and `terrain` stages through a `shared_ptr<const Climate>`, so biomes and terrain always agree.
 
 `terrainShape(climate)` (`gen/shape.hpp`) turns a climate sample into the column's target `height` and `roughness`:
 
-1. The base height is a spline over continentalness: deep ocean floor around y 30-40, ocean 40-59, coast through sea level (63), inland rising from 65 to 96.
+1. The base height is a spline over continentalness: deep ocean floor around y 30-40, ocean 40-59, coast through sea level (63), inland rising from 65 to 96. All heights in these steps are before the [vertical squash](#world-scale).
 2. Inland, a mountain term `spline(erosion) × max(peaksValleys, 0)` adds up to 120 blocks, and a hill term adds a few blocks up or down with `peaksValleys`.
 3. Where `peaksValleys` is near -1 inland (and erosion isn't low), the height is pulled down to 4 below sea level, which cuts rivers along the weirdness zero lines.
 4. High erosion inland pulls the height to just above sea level: swamps.
 5. `roughness` (3 plus a quarter of the mountain height) scales the 3D noise, so plains stay gentle while mountains get cliffs and overhangs.
 
-The `terrain` stage evaluates `density = height - y + roughness × noise3d` at the corners of 4 × 8 × 4 cells (5 × 33 × 5 samples per chunk) and interpolates trilinearly, as Minecraft does. Corners on a chunk's +x/+z edge are the next chunk's corners, sampled from the same functions, so borders are seamless. The density is forced positive below y 8 and fades out above y 232. `seaLevel` (63) and `snowLine` (150) are in `gen/shape.hpp`.
+The `terrain` stage evaluates `density = height - y + roughness × noise3d` at the corners of 4 × 4 × 4 cells (5 × 65 × 5 samples per chunk) and interpolates trilinearly, as Minecraft does. Corners on a chunk's +x/+z edge are the next chunk's corners, sampled from the same functions, so borders are seamless. The density is forced positive below y 8 and fades out above y 232. `seaLevel` (63) and `snowLine` are in `gen/shape.hpp`.
+
+### World scale
+
+`horizontalStretch` and `verticalScale` in `gen/shape.hpp` scale the whole terrain. Every horizontal distance is multiplied by `horizontalStretch` (2), and every height above or below sea level by `verticalScale` (0.75). A `verticalScale` of `1 / horizontalStretch²` would preserve the terrain's volume, but at a stretch of 2 that tops out around y 104, which is too flat; 0.75 keeps mountains up to about y 185.
+
+| __quantity__                         | __scale__     | __where__                                       |
+| ---                                  | ---           | ---                                             |
+| climate noise frequencies            | ÷ stretch     | `makeNoise` in `climate.cpp`                    |
+| `height` relative to sea level       | × vertical    | `squash()` in `terrainShape`, before rivers and swamps |
+| `roughness`                          | × vertical    | `terrainShape`                                  |
+| 3D noise coordinates                 | x, z ÷ stretch, y ÷ vertical | `terrain.cpp`                    |
+| `snowLine`                           | `squash(150)` | `shape.hpp`                                     |
+
+- Sea level is the fixed point, so coastlines and biomes keep their (stretched) positions. With a stretch of 2 the map is exactly the unscaled map enlarged 2×.
+- Slopes are multiplied by `verticalScale / horizontalStretch` (0.375), so bare stone on steep slopes (`surface`, a 4-block step) is mostly limited to mountains.
+- Rivers and swamps are pulled toward fixed levels after the squash, so their depth doesn't depend on the scale.
+- Biome thresholds use the unsquashed `mountain` term, so biome choice doesn't change with the scale.
+- The 3D noise is squashed vertically as well, so its vertical wavelength shrinks. The cells are 4 blocks tall rather than Minecraft's 8 so they still resolve it.
+- Caves, ores, trees, and surface depths are block-scale and are not scaled.
 
 ### Biomes
 
@@ -99,6 +120,7 @@ Generation must give the same world for a seed on every platform, and regardless
 - Randomness comes from `Rng` (`gen/rng.hpp`, splitmix64) seeded with `deriveSeed`. `std::mt19937` with the standard distributions is avoided because the distributions differ between standard libraries.
 - Each stage only reads data that no stage running at the same time can change. For example, `surface` reads neighbour heightmaps, which nothing rewrites until `finalize`, and `finalize` can't run until every neighbour has finished `features`.
 - Stages that write neighbours must use commutative rules like the ones in `features`.
+- Decisions in such a stage must also ignore anything a neighbour can write, or the outcome depends on which chunk ran first, and a skipped decision shifts the `Rng` for everything after it. `features` accepts a tree site whose block above the ground is air *or leaves*, because a neighbour's canopy may or may not have been placed there yet.
 
 ### Stages
 

@@ -1,5 +1,6 @@
 #include "game/world/gen/climate.hpp"
 
+#include "game/world/gen/shape.hpp"
 #include "game/world/gen/stage.hpp"
 
 #include <algorithm>
@@ -15,7 +16,7 @@ FastNoiseLite makeNoise(u64 seed, std::string_view name, f32 frequency, i32 octa
   FastNoiseLite noise;
   noise.SetSeed(noiseSeed(deriveSeed(seed, name)));
   noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-  noise.SetFrequency(frequency);
+  noise.SetFrequency(frequency / horizontalStretch);
   noise.SetFractalType(FastNoiseLite::FractalType_FBm);
   noise.SetFractalOctaves(octaves);
   return noise;

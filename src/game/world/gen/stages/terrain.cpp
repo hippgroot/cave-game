@@ -7,17 +7,17 @@
 namespace {
 
 constexpr i32 _cellWidth  = 4;
-constexpr i32 _cellHeight = 8;
+constexpr i32 _cellHeight = 4;
 constexpr i32 _cornersXZ  = Chunk::width / _cellWidth + 1;
 constexpr i32 _cornersY   = Chunk::height / _cellHeight + 1;
 
-constexpr f32 _frequency     = 0.012f;
-constexpr i32 _octaves       = 3;
-constexpr f32 _verticalScale = 1.5f;
-constexpr i32 _floorSlide    = 8;
-constexpr f32 _floorStrength = 4.0f;
-constexpr i32 _ceilingSlide  = Chunk::height - 24;
-constexpr f32 _ceilingFade   = 2.0f;
+constexpr f32 _frequency         = 0.012f;
+constexpr i32 _octaves           = 3;
+constexpr f32 _verticalFrequency = 1.5f;
+constexpr i32 _floorSlide        = 8;
+constexpr f32 _floorStrength     = 4.0f;
+constexpr i32 _ceilingSlide      = Chunk::height - 24;
+constexpr f32 _ceilingFade       = 2.0f;
 
 constexpr size corner(i32 x, i32 y, i32 z) {
   return static_cast<size>((y * _cornersXZ + z) * _cornersXZ + x);
@@ -48,7 +48,7 @@ void TerrainStage::generate(Region& region) const {
 
       for (i32 cy = 0; cy < _cornersY; ++cy) {
         const i32 y     = cy * _cellHeight;
-        const f32 noise = m_noise.GetNoise(static_cast<f32>(wx), static_cast<f32>(y) * _verticalScale, static_cast<f32>(wz));
+        const f32 noise = m_noise.GetNoise(static_cast<f32>(wx) / horizontalStretch, static_cast<f32>(y) * _verticalFrequency / verticalScale, static_cast<f32>(wz) / horizontalStretch);
 
         f32 value = shape.height - static_cast<f32>(y) + shape.roughness * noise;
         if (y < _floorSlide) value += static_cast<f32>(_floorSlide - y) * _floorStrength;
